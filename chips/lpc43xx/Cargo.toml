@@ -1,0 +1,8 @@
+[package]
+name = "lpc43xx"
+version = "0.1.0"
+authors = ["Emilio Moretti <emilio.moretti@gmail.com>"]
+
+[dependencies]
+cortexm4 = { path = "../../../tock/arch/cortex-m4" }
+kernel = { path = "../../../tock/kernel" }
