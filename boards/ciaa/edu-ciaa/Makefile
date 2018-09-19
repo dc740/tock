@@ -1,5 +1,4 @@
 # Makefile for building the tock kernel for the nRF51 development kit
-
 TOCK_ARCH=cortex-m4
 TARGET=thumbv7em-none-eabi
 PLATFORM=lpc43xx
@@ -12,12 +11,6 @@ OOCD=openocd
 OOCD_SCRIPT=./ftdi_lpc4337.cfg
 
 # Where in the lpc43xx flash to load the kernel with `tockloader`
-
-ifeq ($(VERBOSE),y)
-Q=
-else
-Q=@
-endif
 
 # Upload programs over uart with tockloader
 ifdef PORT
