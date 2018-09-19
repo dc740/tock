@@ -3,8 +3,7 @@
 #![crate_name = "lpc43xx"]
 #![crate_type = "rlib"]
 
-extern crate cortexm0;
-extern crate nrf5x;
+extern crate cortexm4;
 
 #[allow(unused_imports)]
 #[macro_use(
@@ -16,7 +15,9 @@ extern crate nrf5x;
 )]
 extern crate kernel;
 
-pub mod adchs;
+
+// I commented out the files that have invalid definitions from svd2regs.py
+/*pub mod adchs;
 pub mod adc;
 pub mod atimer;
 pub mod c_can0;
@@ -58,4 +59,4 @@ pub mod uart1;
 pub mod usart;
 pub mod usb0;
 pub mod usb1;
-pub mod wwdt;
+pub mod wwdt;*/

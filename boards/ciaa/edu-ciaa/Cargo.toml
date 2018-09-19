@@ -1,0 +1,24 @@
+[package]
+name = "edu-ciaa"
+version = "0.1.0"
+authors = ["Emilio Moretti <emilio.moretti@gmail.com>"]
+build = "build.rs"
+
+[profile.dev]
+panic = "abort"
+lto = false
+opt-level = "z"
+debug = true
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "z"
+debug = true
+
+[dependencies]
+cortexm4 = { path = "../../../arch/cortex-m4" }
+capsules = { path = "../../../capsules" }
+kernel = { path = "../../../kernel" }
+lpc43xx = { path = "../../../chips/lpc43xx" }
+
