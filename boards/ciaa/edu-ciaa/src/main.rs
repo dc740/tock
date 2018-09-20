@@ -8,6 +8,7 @@ extern crate capsules;
 #[macro_use(create_capability, debug, debug_gpio, static_init)]
 extern crate kernel;
 extern crate cortexm4;
+extern crate lpc43xx;
 
 use core::panic::PanicInfo;
 #[cfg(not(test))]

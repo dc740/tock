@@ -4,7 +4,6 @@
 #![crate_type = "rlib"]
 
 extern crate cortexm4;
-
 #[allow(unused_imports)]
 #[macro_use(
     debug,
@@ -15,7 +14,7 @@ extern crate cortexm4;
 )]
 extern crate kernel;
 
-
+pub mod chip;
 // I commented out the files that have invalid definitions from svd2regs.py
 /*pub mod adchs;
 pub mod adc;
