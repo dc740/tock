@@ -1,23 +1,20 @@
 //! Tock core scheduler.
 
 use core::cell::Cell;
-use core::ptr;
 use core::ptr::NonNull;
 
-use callback;
-use callback::{AppId, Callback};
-use capabilities;
-use common::cells::NumericCellExt;
-use grant::Grant;
-use ipc;
-use mem::AppSlice;
-use memop;
-use platform::mpu::MPU;
-use platform::systick::SysTick;
-use platform::{Chip, Platform};
-use process::{self, Task};
-use returncode::ReturnCode;
-use syscall::{ContextSwitchReason, Syscall};
+use crate::callback::Callback;
+use crate::capabilities;
+use crate::common::cells::NumericCellExt;
+use crate::grant::Grant;
+use crate::ipc;
+use crate::memop;
+use crate::platform::mpu::MPU;
+use crate::platform::systick::SysTick;
+use crate::platform::{Chip, Platform};
+use crate::process::{self, Task};
+use crate::returncode::ReturnCode;
+use crate::syscall::{ContextSwitchReason, Syscall};
 
 /// The time a process is permitted to run before being pre-empted
 const KERNEL_TICK_DURATION_US: u32 = 10000;
@@ -85,8 +82,29 @@ impl Kernel {
 
     /// Run a closure on every valid process. This will iterate the array of
     /// processes and call the closure on every process that exists.
-    crate fn process_each_enumerate<F>(&self, closure: F)
+    crate fn process_each<F>(&self, closure: F)
     where
+        F: Fn(&process::ProcessType),
+    {
+        for process in self.processes.iter() {
+            match process {
+                Some(p) => {
+                    closure(*p);
+                }
+                None => {}
+            }
+        }
+    }
+
+    /// Run a closure on every valid process. This will iterate the
+    /// array of processes and call the closure on every process that
+    /// exists. Ths method is available outside the kernel crate but
+    /// requires a `ProcessManagementCapability` to use.
+    pub fn process_each_capability<F>(
+        &'static self,
+        _capability: &capabilities::ProcessManagementCapability,
+        closure: F,
+    ) where
         F: Fn(usize, &process::ProcessType),
     {
         for (i, process) in self.processes.iter().enumerate() {
@@ -103,14 +121,14 @@ impl Kernel {
     /// `FAIL`. That is, if the closure returns any other return code than
     /// `FAIL`, that value will be returned from this function and the iteration
     /// of the array of processes will stop.
-    crate fn process_each_enumerate_stop<F>(&self, closure: F) -> ReturnCode
+    crate fn process_until<F>(&self, closure: F) -> ReturnCode
     where
-        F: Fn(usize, &process::ProcessType) -> ReturnCode,
+        F: Fn(&process::ProcessType) -> ReturnCode,
     {
-        for (i, process) in self.processes.iter().enumerate() {
+        for process in self.processes.iter() {
             match process {
                 Some(p) => {
-                    let ret = closure(i, *p);
+                    let ret = closure(*p);
                     if ret != ReturnCode::FAIL {
                         return ret;
                     }
@@ -185,7 +203,7 @@ impl Kernel {
     pub fn kernel_loop<P: Platform, C: Chip>(
         &'static self,
         platform: &P,
-        chip: &mut C,
+        chip: &C,
         ipc: Option<&ipc::IPC>,
         _capability: &capabilities::MainLoopCapability,
     ) {
@@ -193,15 +211,9 @@ impl Kernel {
             unsafe {
                 chip.service_pending_interrupts();
 
-                for (i, p) in self.processes.iter().enumerate() {
+                for p in self.processes.iter() {
                     p.map(|process| {
-                        self.do_process(
-                            platform,
-                            chip,
-                            process,
-                            callback::AppId::new(self, i),
-                            ipc,
-                        );
+                        self.do_process(platform, chip, process, ipc);
                     });
                     if chip.has_pending_interrupts() {
                         break;
@@ -220,21 +232,23 @@ impl Kernel {
     unsafe fn do_process<P: Platform, C: Chip>(
         &self,
         platform: &P,
-        chip: &mut C,
+        chip: &C,
         process: &process::ProcessType,
-        appid: AppId,
-        ipc: Option<&::ipc::IPC>,
+        ipc: Option<&crate::ipc::IPC>,
     ) {
+        let appid = process.appid();
         let systick = chip.systick();
         systick.reset();
         systick.set_timer(KERNEL_TICK_DURATION_US);
         systick.enable(true);
 
         loop {
-            if chip.has_pending_interrupts()
-                || systick.overflowed()
-                || !systick.greater_than(MIN_QUANTA_THRESHOLD_US)
-            {
+            if chip.has_pending_interrupts() {
+                break;
+            }
+
+            if systick.overflowed() || !systick.greater_than(MIN_QUANTA_THRESHOLD_US) {
+                process.debug_timeslice_expired();
                 break;
             }
 
@@ -243,7 +257,7 @@ impl Kernel {
                     // Running means that this process expects to be running,
                     // so go ahead and set things up and switch to executing
                     // the process.
-                    process.setup_mpu(chip.mpu());
+                    process.setup_mpu();
                     chip.mpu().enable_mpu();
                     systick.enable(true);
                     let context_switch_reason = process.switch_to();
@@ -320,26 +334,11 @@ impl Kernel {
                                     let res = platform.with_driver(driver_number, |driver| {
                                         match driver {
                                             Some(d) => {
-                                                if allow_address != ptr::null_mut() {
-                                                    if process.in_app_owned_memory(
-                                                        allow_address,
-                                                        allow_size,
-                                                    ) {
-                                                        let slice = AppSlice::new(
-                                                            allow_address,
-                                                            allow_size,
-                                                            appid,
-                                                        );
-                                                        d.allow(
-                                                            appid,
-                                                            subdriver_number,
-                                                            Some(slice),
-                                                        )
-                                                    } else {
-                                                        ReturnCode::EINVAL /* memory not allocated to process */
+                                                match process.allow(allow_address, allow_size) {
+                                                    Ok(oslice) => {
+                                                        d.allow(appid, subdriver_number, oslice)
                                                     }
-                                                } else {
-                                                    d.allow(appid, subdriver_number, None)
+                                                    Err(err) => err, /* memory not valid */
                                                 }
                                             }
                                             None => ReturnCode::ENODEVICE,
@@ -351,6 +350,10 @@ impl Kernel {
                             }
                         }
                         Some(ContextSwitchReason::TimesliceExpired) => {
+                            // break to handle other processes.
+                            break;
+                        }
+                        Some(ContextSwitchReason::Interrupted) => {
                             // break to handle other processes.
                             break;
                         }
@@ -389,6 +392,18 @@ impl Kernel {
                 process::State::Fault => {
                     // We should never be scheduling a process in fault.
                     panic!("Attempted to schedule a faulty process");
+                }
+                process::State::StoppedRunning => {
+                    break;
+                    // Do nothing
+                }
+                process::State::StoppedYielded => {
+                    break;
+                    // Do nothing
+                }
+                process::State::StoppedFaulted => {
+                    break;
+                    // Do nothing
                 }
             }
         }

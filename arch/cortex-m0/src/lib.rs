@@ -1,9 +1,6 @@
 #![feature(asm, const_fn, naked_functions)]
 #![no_std]
 
-extern crate cortexm;
-extern crate kernel;
-
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m0.
 pub use cortexm::support;
@@ -82,7 +79,7 @@ MEXC_RETURN_MSP:
   .word 0xFFFFFFF9
 MEXC_RETURN_PSP:
   .word 0xFFFFFFFD"
-    );
+    : : : : "volatile");
 }
 
 #[naked]
@@ -108,7 +105,7 @@ EXC_RETURN_MSP:
 EXC_RETURN_PSP:
   .word 0xFFFFFFFD
   "
-    );
+  : : : : "volatile"  );
 }
 
 #[no_mangle]
@@ -156,6 +153,6 @@ pub unsafe extern "C" fn switch_to_user(
     "
     : "={r0}"(user_stack)
     : "{r0}"(user_stack), "{r1}"(process_regs)
-    : "r4","r5","r6","r7","r8","r9","r10","r11");
+    : "r4","r5","r6","r7","r8","r9","r10","r11" : "volatile" );
     user_stack as *mut u8
 }

@@ -23,7 +23,7 @@
 //! -------
 //!
 //! ```no_run
-//! # #[macro_use] extern crate kernel;
+//! # use kernel::{debug, debug_gpio, debug_verbose};
 //! # fn main() {
 //! # let i = 42;
 //! debug!("Yes the code gets here with value {}", i);
@@ -45,10 +45,10 @@ use core::ptr;
 use core::slice;
 use core::str;
 
-use common::cells::NumericCellExt;
-use common::cells::{MapCell, TakeCell};
-use hil;
-use process::ProcessType;
+use crate::common::cells::NumericCellExt;
+use crate::common::cells::{MapCell, TakeCell};
+use crate::hil;
+use crate::process::ProcessType;
 
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
@@ -505,7 +505,7 @@ pub fn begin_debug_fmt(args: Arguments) {
     unsafe {
         let writer = get_debug_writer();
         let _ = write(writer, args);
-        let _ = writer.write_str("\n");
+        let _ = writer.write_str("\r\n");
         writer.publish_str();
     }
 }
@@ -520,7 +520,7 @@ pub fn begin_debug_verbose_fmt(args: Arguments, file_line: &(&'static str, u32))
         let (file, line) = *file_line;
         let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
         let _ = write(writer, args);
-        let _ = writer.write_str("\n");
+        let _ = writer.write_str("\r\n");
         writer.publish_str();
     }
 }

@@ -2,25 +2,16 @@
 
 #![no_std]
 
-extern crate capsules;
-extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(
-    create_capability,
-    debug,
-    debug_verbose,
-    debug_gpio,
-    static_init
-)]
-extern crate kernel;
-extern crate nrf52;
-extern crate nrf5x;
+use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
-use capsules::virtual_uart::{UartDevice, UartMux};
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::hil;
+use kernel::hil::entropy::Entropy32;
+use kernel::hil::rng::Rng;
 use nrf5x::rtc::Rtc;
 
 /// Pins for SPI for the flash chip MX25R6435F
@@ -81,7 +72,7 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
-    rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
+    rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -159,7 +150,10 @@ pub unsafe fn setup_board(
 
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins)
+        capsules::gpio::GPIO::new(
+            gpio_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
@@ -215,8 +209,8 @@ pub unsafe fn setup_board(
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
-        UartMux<'static>,
-        UartMux::new(
+        MuxUart<'static>,
+        MuxUart::new(
             &nrf52::uart::UARTE0,
             &mut capsules::virtual_uart::RX_BUF,
             115200
@@ -298,14 +292,20 @@ pub unsafe fn setup_board(
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
+    let entropy_to_random = static_init!(
+        capsules::rng::Entropy32ToRandom<'static>,
+        capsules::rng::Entropy32ToRandom::new(&nrf5x::trng::TRNG)
+    );
+
     let rng = static_init!(
-        capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
-        capsules::rng::SimpleRng::new(
-            &mut nrf5x::trng::TRNG,
+        capsules::rng::RngDriver<'static>,
+        capsules::rng::RngDriver::new(
+            entropy_to_random,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    nrf5x::trng::TRNG.set_client(rng);
+    nrf5x::trng::TRNG.set_client(entropy_to_random);
+    entropy_to_random.set_client(rng);
 
     // SPI
     let mux_spi = static_init!(
@@ -418,7 +418,7 @@ pub unsafe fn setup_board(
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-    let mut chip = nrf52::chip::NRF52::new();
+    let chip = static_init!(nrf52::chip::NRF52, nrf52::chip::NRF52::new());
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
@@ -429,7 +429,7 @@ pub unsafe fn setup_board(
     }
     kernel::procs::load_processes(
         board_kernel,
-        &cortexm4::syscall::SysCall::new(),
+        chip,
         &_sapps as *const u8,
         app_memory,
         process_pointers,
@@ -437,10 +437,5 @@ pub unsafe fn setup_board(
         &process_management_capability,
     );
 
-    board_kernel.kernel_loop(
-        &platform,
-        &mut chip,
-        Some(&platform.ipc),
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

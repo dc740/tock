@@ -10,12 +10,12 @@ contribute, and we appreciate all of them.
 * [Issue Triage](#issue-triage)
 
 If you have questions, please make a post on the [mailing list][listserv] or
-hop on [#tock][irc].
+join us on [Slack][slack].
 
 As a reminder, all contributors are expected to follow the Rust [Code of
 Conduct][coc].
 
-[irc]: https://kiwiirc.com/client/irc.freenode.net/tock
+[slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LTg4YzE1MTkwYzI0YjhjNjA0YWExOGY2ZGYwNjQ2YmFiZjdhOTdlMzY0YTBiYTA2YTRlYzMyZTI1MDdmMTgwMzc
 [listserv]: https://groups.google.com/forum/#!forum/tock-dev
 [coc]: https://www.rust-lang.org/conduct.html
 
@@ -28,7 +28,7 @@ core kernel live here.
 If you are porting Tock to a different hardware platform or building an
 application for an existing platform, that code should go in a [separate
 repository][out-of-tree]. We still encourage you to join the [mailing
-list][listserv] and [IRC channel][irc] and ask questions there. Of course, if
+list][listserv] and [Slack][slack] and ask questions there. Of course, if
 building your application or port requires in changes in this code base, we
 encourage you to contribute them here.
 
@@ -203,10 +203,11 @@ commits (see notes about [rewriting-history](#rewriting-history)).
 ### Step 7: Style
 
 Mainline Tock uses [rustfmt](https://github.com/rust-lang-nursery/rustfmt) to
-format code, using mostly the default style options (see [rustfmt.toml](../rustfmt.toml)
-for details. As rustfmt is under development, Tock pegs a specific version for
-use in formatting. The build system will automatically use (and install if needed)
-the correct rustfmt version when you invoke `make format`.
+format code, using the default style options. As rustfmt is included as a component
+in nightly Rust releases, the version of rustfmt that Tock uses is directly tied
+to the nightly version Tock is currently using. The build system will
+automatically use (and install if needed) the correct rustfmt version when you
+invoke `make format`.
 
 The target `make formatall` in the root will automatically run all style checks
 and make any required changes. PRs must pass the formatting checks before landing.

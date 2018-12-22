@@ -1,4 +1,5 @@
-use cortexm4::{generic_isr, nvic, svc_handler, systick_handler};
+use cortexm4::{generic_isr, hard_fault_handler, nvic, svc_handler, systick_handler};
+use tock_rt0;
 
 extern "C" {
     // Symbols defined in the linker file
@@ -18,14 +19,10 @@ unsafe extern "C" fn unhandled_interrupt() {
     'loop0: loop {}
 }
 
-unsafe extern "C" fn hard_fault_handler() {
-    'loop0: loop {}
-}
-
 #[link_section = ".vectors"]
 // used Ensures that the symbol is kept until the final binary
 #[used]
-pub static BASE_VECTORS: [unsafe extern "C" fn(); 50] = [
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 54] = [
     _estack,
     reset_handler,
     unhandled_interrupt, // NMI
@@ -78,53 +75,15 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 50] = [
     generic_isr, // AUX ADC new sample or ADC DMA
     // done, ADC underflow, ADC overflow
     generic_isr, // TRNG event
+    generic_isr,
+    generic_isr,
+    generic_isr,
+    generic_isr,
 ];
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let mut current_block;
-    let mut p_src: *mut u32;
-    let mut p_dest: *mut u32;
-
-    // Move the relocate segment. This assumes it is located after the text
-    // segment, which is where the storm linker file puts it
-    p_src = &mut _etext as (*mut u32);
-    p_dest = &mut _srelocate as (*mut u32);
-    if p_src != p_dest {
-        current_block = 1;
-    } else {
-        current_block = 2;
-    }
-    'loop1: loop {
-        if current_block == 1 {
-            if !(p_dest < &mut _erelocate as (*mut u32)) {
-                current_block = 2;
-                continue;
-            }
-            *{
-                let _old = p_dest;
-                p_dest = p_dest.offset(1isize);
-                _old
-            } = *{
-                let _old = p_src;
-                p_src = p_src.offset(1isize);
-                _old
-            };
-            current_block = 1;
-        } else {
-            p_dest = &mut _szero as (*mut u32);
-            break;
-        }
-    }
-    'loop3: loop {
-        if !(p_dest < &mut _ezero as (*mut u32)) {
-            break;
-        }
-        *{
-            let _old = p_dest;
-            p_dest = p_dest.offset(1isize);
-            _old
-        } = 0u32;
-    }
+    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
+    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
     nvic::enable_all();
 }

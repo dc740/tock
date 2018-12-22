@@ -5,25 +5,21 @@
 
 #![no_std]
 #![no_main]
-#![feature(panic_implementation)]
 #![deny(missing_docs)]
-
-extern crate capsules;
-#[allow(unused_imports)]
-#[macro_use(create_capability, debug, debug_gpio, static_init)]
-extern crate kernel;
-extern crate cortexm4;
-extern crate sam4l;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use capsules::virtual_uart::{UartDevice, UartMux};
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::hil;
+use kernel::hil::entropy::Entropy32;
+use kernel::hil::rng::Rng;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 use kernel::Platform;
+#[allow(unused_imports)]
+use kernel::{create_capability, debug, debug_gpio, static_init};
 
 /// Support routines for debugging I/O.
 ///
@@ -49,10 +45,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [
-    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-    None, None, None, None,
-];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -80,7 +73,7 @@ struct Hail {
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-    rng: &'static capsules::rng::SimpleRng<'static, sam4l::trng::Trng<'static>>,
+    rng: &'static capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules::dac::Dac<'static>,
@@ -217,15 +210,15 @@ pub unsafe fn reset_handler() {
         Some(&sam4l::gpio::PA[14]),
     );
 
-    let mut chip = sam4l::chip::Sam4l::new();
+    let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
 
     // Initialize USART0 for Uart
     sam4l::usart::USART0.set_mode(sam4l::usart::UsartMode::Uart);
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
-        UartMux<'static>,
-        UartMux::new(
+        MuxUart<'static>,
+        MuxUart::new(
             &sam4l::usart::USART0,
             &mut capsules::virtual_uart::RX_BUF,
             115200
@@ -247,6 +240,26 @@ pub unsafe fn reset_handler() {
         )
     );
     hil::uart::UART::set_client(console_uart, console);
+
+    // Setup the process inspection console
+    let process_console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    process_console_uart.setup();
+    pub struct ProcessConsoleCapability;
+    unsafe impl capabilities::ProcessManagementCapability for ProcessConsoleCapability {}
+    let process_console = static_init!(
+        capsules::process_console::ProcessConsole<UartDevice, ProcessConsoleCapability>,
+        capsules::process_console::ProcessConsole::new(
+            process_console_uart,
+            115200,
+            &mut capsules::process_console::WRITE_BUF,
+            &mut capsules::process_console::READ_BUF,
+            &mut capsules::process_console::COMMAND_BUF,
+            board_kernel,
+            ProcessConsoleCapability,
+        )
+    );
+    hil::uart::UART::set_client(process_console_uart, process_console);
+    process_console.initialize();
 
     // Initialize USART3 for Uart
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
@@ -467,14 +480,19 @@ pub unsafe fn reset_handler() {
     sam4l::adc::ADC0.set_client(adc);
 
     // Setup RNG
+    let entropy_to_random = static_init!(
+        capsules::rng::Entropy32ToRandom<'static>,
+        capsules::rng::Entropy32ToRandom::new(&sam4l::trng::TRNG)
+    );
     let rng = static_init!(
-        capsules::rng::SimpleRng<'static, sam4l::trng::Trng>,
-        capsules::rng::SimpleRng::new(
-            &sam4l::trng::TRNG,
+        capsules::rng::RngDriver<'static>,
+        capsules::rng::RngDriver::new(
+            entropy_to_random,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    sam4l::trng::TRNG.set_client(rng);
+    sam4l::trng::TRNG.set_client(entropy_to_random);
+    entropy_to_random.set_client(rng);
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
@@ -488,7 +506,10 @@ pub unsafe fn reset_handler() {
     ); // D7
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins)
+        capsules::gpio::GPIO::new(
+            gpio_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
@@ -576,6 +597,8 @@ pub unsafe fn reset_handler() {
     hail.nrf51822.reset();
     hail.nrf51822.initialize();
 
+    process_console.start();
+
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
@@ -590,12 +613,12 @@ pub unsafe fn reset_handler() {
 
     kernel::procs::load_processes(
         board_kernel,
-        &cortexm4::syscall::SysCall::new(),
+        chip,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_management_capability,
     );
-    board_kernel.kernel_loop(&hail, &mut chip, Some(&hail.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), &main_loop_capability);
 }
