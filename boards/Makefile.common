@@ -151,9 +151,11 @@ target:
 	$(Q)cp $< $@
 
 %.bin: %.elf
+	echo "$(Q)$(OBJCOPY) --output-target=binary $^ $@"
 	$(Q)$(OBJCOPY) --output-target=binary $^ $@
 
 %.lst: %.elf
+	echo "$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@"
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
 
 

@@ -21,13 +21,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "hail"
+name = "edu-ciaa"
 version = "0.1.0"
 dependencies = [
  "capsules 0.1.0",
  "cortexm4 0.1.0",
  "kernel 0.1.0",
- "sam4l 0.1.0",
+ "lpc43xx 0.1.0",
 ]
 
 [[package]]
@@ -39,7 +39,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sam4l"
+name = "lpc43xx"
 version = "0.1.0"
 dependencies = [
  "cortexm4 0.1.0",
