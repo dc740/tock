@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
     /// USB0 Host/Device/OTG controller
 #[repr(C)]
 struct Usb0Registers {

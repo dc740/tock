@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
     /// Real-Time Clock (RTC) and event recorder
 #[repr(C)]
 struct RtcRegisters {

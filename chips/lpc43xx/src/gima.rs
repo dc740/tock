@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
     /// Global Input Multiplexer Array (GIMA)
 #[repr(C)]
 struct GimaRegisters {

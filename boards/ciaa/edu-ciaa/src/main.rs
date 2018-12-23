@@ -62,10 +62,10 @@ pub unsafe fn reset_handler() {
     //    debug!("Starting virtual read test.");
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-/*	let gpio = static_init!(
-	        capsules::gpio::GPIO<'static, lpc43xx::gpio_port::GPIOPin>,
-	        capsules::gpio::GPIO::new(gpio_pins)
-	    );*/
+
+	// TODO: init GPIO here later, or use the Component architechture from Imix 
+	// that also looks quite nice.
+	
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let process_management_capability =
@@ -74,7 +74,7 @@ pub unsafe fn reset_handler() {
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
 	let platform = Platform {
-	        //gpio: gpio,
+	        //gpio: gpio, //FIXME: once you init GPIO
 	    };
 	let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
     debug!("Initialization complete. Entering main loop");

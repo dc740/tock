@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
     /// Quadrature Encoder Interface (QEI)
 #[repr(C)]
 struct QeiRegisters {

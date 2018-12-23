@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
     /// 12-bit Analog-to-Digital Converter  High-Speed (ADCHS)
 #[repr(C)]
 struct AdchsRegisters {
