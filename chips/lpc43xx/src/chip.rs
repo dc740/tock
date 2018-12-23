@@ -5,15 +5,16 @@ use kernel::Chip;
 
 
 pub struct Lpc43xx {
-    pub mpu: cortexm4::mpu::MPU,
-    pub systick: cortexm4::systick::SysTick,
+    mpu: cortexm4::mpu::MPU,
+	userspace_kernel_boundary: cortexm4::syscall::SysCall,
+    systick: cortexm4::systick::SysTick,
 }
 
 impl Lpc43xx {
     pub unsafe fn new() -> Lpc43xx {
-
         Lpc43xx {
             mpu: cortexm4::mpu::MPU::new(),
+			userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             systick: cortexm4::systick::SysTick::new(),
         }
     }
@@ -21,9 +22,10 @@ impl Lpc43xx {
 
 impl Chip for Lpc43xx {
     type MPU = cortexm4::mpu::MPU;
+    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;
 
-    fn service_pending_interrupts(&mut self) {
+    fn service_pending_interrupts(&self) {
         unsafe {
             loop {
                 /*if let Some(task) = deferred_call::DeferredCall::next_pending() {
@@ -39,9 +41,9 @@ impl Chip for Lpc43xx {
                         }
                     }
                     //this is unreachable in the current state. Handle the interrupts so it's not anymore
-                    let n = cortexm4::nvic::Nvic::new(interrupt);
+                    /*let n = cortexm4::nvic::Nvic::new(interrupt);
                     n.clear_pending();
-                    n.enable();
+                    n.enable();*/
                 } else {
                     break;
                 }
@@ -84,4 +86,9 @@ impl Chip for Lpc43xx {
     {
         cortexm4::support::atomic(f)
     }
+
+    fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {
+        &self.userspace_kernel_boundary
+    }
+
 }

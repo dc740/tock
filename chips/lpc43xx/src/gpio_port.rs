@@ -1,6 +1,7 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadWrite, WriteOnly, register_bitfields};
+
     /// GPIO port
 #[repr(C)]
 struct Gpio_PortRegisters {

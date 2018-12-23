@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(panic_implementation)]
 //#![deny(missing_docs)]
 
 extern crate capsules;
@@ -17,9 +16,9 @@ use core::panic::PanicInfo;
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 #[cfg(not(test))]
-#[panic_implementation]
+#[panic_handler]
 #[no_mangle]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe extern "C" fn panic_fmt(_: &PanicInfo) -> ! {
 	loop { }
 }
 
@@ -34,7 +33,7 @@ const NUM_PROCS: usize = 1;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROC];
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -63,10 +62,10 @@ pub unsafe fn reset_handler() {
     //    debug!("Starting virtual read test.");
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-	let gpio = static_init!(
+/*	let gpio = static_init!(
 	        capsules::gpio::GPIO<'static, lpc43xx::gpio_port::GPIOPin>,
 	        capsules::gpio::GPIO::new(gpio_pins)
-	    );
+	    );*/
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let process_management_capability =
@@ -75,9 +74,9 @@ pub unsafe fn reset_handler() {
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
 	let platform = Platform {
-	        gpio: gpio,
+	        //gpio: gpio,
 	    };
-	let mut chip = lpc43xx::chip::Lpc43xx::new();
+	let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {
@@ -86,7 +85,7 @@ pub unsafe fn reset_handler() {
     }
     kernel::procs::load_processes(
         board_kernel,
-        &cortexm4::syscall::SysCall::new(),
+        chip,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
@@ -96,7 +95,7 @@ pub unsafe fn reset_handler() {
 
     board_kernel.kernel_loop(
         &platform,
-        &mut chip,
+        chip,
         Some(&kernel::ipc::IPC::new(
             board_kernel,
             &memory_allocation_capability,
