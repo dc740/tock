@@ -37,9 +37,9 @@ pub mod gpio_port;
 /*pub mod i2c;
 pub mod i2s;
 pub mod lcd;
-pub mod mcpwm;
+pub mod mcpwm;*/
 pub mod pmc;
-pub mod qei;
+/*pub mod qei;
 pub mod regfile;
 pub mod rgu;
 pub mod ritimer;

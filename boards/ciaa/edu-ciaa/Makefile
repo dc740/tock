@@ -37,3 +37,8 @@ flash: target/$(TARGET)/release/$(PLATFORM).bin
 .PHONY: program
 program: target/$(TARGET)/release/$(PLATFORM).hex
 	$(error Cannot program over USB)
+	
+# Upload a sample program from internet
+# ftdi_lpc4337.cfg must be present in the openocd board folder (ie: /usr/share/openocd/scripts/board)
+load_blinky:
+	tockloader  install blink --openocd --arch cortex-m4 --board edu-ciaa --openocd-board ftdi_lpc4337.cfg

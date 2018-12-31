@@ -15,7 +15,8 @@ impl Lpc43xx {
         Lpc43xx {
             mpu: cortexm4::mpu::MPU::new(),
 			userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            systick: cortexm4::systick::SysTick::new(),
+			// The systick clocks with 204MHz by default
+            systick: cortexm4::systick::SysTick::new_with_calibration(204 * 1000000),
         }
     }
 }
@@ -37,13 +38,13 @@ impl Chip for Lpc43xx {
                 } else */if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
                         _ => {
-                            panic!("unhandled interrupt {}", interrupt);
+                            (); //panic!("unhandled interrupt {}", interrupt);
                         }
                     }
-                    //this is unreachable in the current state. Handle the interrupts so it's not anymore
-                    /*let n = cortexm4::nvic::Nvic::new(interrupt);
+                    
+                    let n = cortexm4::nvic::Nvic::new(interrupt);
                     n.clear_pending();
-                    n.enable();*/
+                    n.enable();
                 } else {
                     break;
                 }
@@ -64,16 +65,16 @@ impl Chip for Lpc43xx {
     }
 
     fn sleep(&self) {
-    /*
-        if pm::deep_sleep_ready() {
+    
+/*        if pm::deep_sleep_ready() {
             unsafe {
                 cortexm4::scb::set_sleepdeep();
             }
-        } else {
+        } else {*/
             unsafe {
                 cortexm4::scb::unset_sleepdeep();
             }
-        }*/
+        //}
 
         unsafe {
             cortexm4::support::wfi();

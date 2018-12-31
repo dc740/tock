@@ -12,11 +12,16 @@ pd0_sleep0_mode: ReadWrite<u32>,
 }
 register_bitfields![u32,
 PD0_SLEEP0_HW_ENA [
-    /// Writing a 1 enables the Cortex-M4 core to put the part
-								into any of the P
+    /* Writing a 1 enables the Cortex-M4 core to put the part
+	into any of the Power-down modes Deep-sleep,
+	Power-down, or Deep power-down depending on the
+	value in the PD0_SLEEP0_MODE register.*/
     ENA_EVENT0 OFFSET(0) NUMBITS(1) [],
-    /// Writing a 1 enables the Cortex-M0 core and the
-								Cortex-M0 subsystem core
+    /*Writing a 1 enables the Cortex-M0 core and the
+	Cortex-M0 subsystem core to put the part into any of
+	the Power-down modes Deep-sleep, Power-down, or
+	Deep power-down depending on the value in the
+	PD0_SLEEP0_MODE register.*/
     ENA_EVENT1 OFFSET(1) NUMBITS(1) []
 ]
 ];
