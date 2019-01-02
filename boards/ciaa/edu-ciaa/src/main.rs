@@ -59,6 +59,17 @@ impl kernel::Platform for Platform {
 /// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
+	lpc43xx::init();
+
+/*    lpc43xx::pmc::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
+        frequency: sam4l::pm::OscillatorFrequency::Frequency16MHz,
+        startup_mode: sam4l::pm::OscillatorStartup::FastStart,
+    });
+
+    // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
+    sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
+*/
+    //set_pin_primary_functions();
     //    debug!("Starting virtual read test.");
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
@@ -77,7 +88,15 @@ pub unsafe fn reset_handler() {
 	        //gpio: gpio, //FIXME: once you init GPIO
 	    };
 	let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
-    debug!("Initialization complete. Entering main loop");
+	
+	/* TODO: implement UART so we get debugging messages there
+	DO NOT USE debug! until we do this!
+	let debug_wrapper = static_init!(
+        kernel::debug::DebugWriterWrapper,
+        kernel::debug::DebugWriterWrapper::new(debugger)
+    );
+    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+    debug!("Initialization complete. Entering main loop");*/
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

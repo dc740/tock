@@ -20,9 +20,9 @@ pub mod atimer;
 pub mod c_can0;
 pub mod c_can1;
 pub mod ccu1;
-pub mod ccu2;
+pub mod ccu2;*/
 pub mod cgu;
-pub mod creg;
+/*pub mod creg;
 pub mod dac;
 pub mod eeprom;
 pub mod emc;

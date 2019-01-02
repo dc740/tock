@@ -35,7 +35,7 @@ flash: target/$(TARGET)/release/$(PLATFORM).bin
 
 # Upload the kernel over serial/bootloader
 .PHONY: program
-program: target/$(TARGET)/release/$(PLATFORM).hex
+program: target/$(TARGET)/release/$(PLATFORM).bin
 	$(error Cannot program over USB)
 	
 # Upload a sample program from internet

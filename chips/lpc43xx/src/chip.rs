@@ -15,8 +15,7 @@ impl Lpc43xx {
         Lpc43xx {
             mpu: cortexm4::mpu::MPU::new(),
 			userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-			// The systick clocks with 204MHz by default
-            systick: cortexm4::systick::SysTick::new_with_calibration(204 * 1000000),
+            systick: cortexm4::systick::SysTick::new(),
         }
     }
 }
