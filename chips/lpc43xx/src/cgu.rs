@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields};
     /// Clock Generation Unit (CGU)
 #[repr(C)]
 struct CguRegisters {

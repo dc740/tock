@@ -37,7 +37,7 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 
 /// Supported drivers by the platform
 pub struct Platform {
-	//gpio: &'static capsules::gpio::GPIO<'static, lpc43xx::gpio_port::GPIOPin>,
+	gpio: &'static capsules::gpio::GPIO<'static, lpc43xx::gpio::GPIOPin>,
 }
 
 impl kernel::Platform for Platform {
@@ -74,8 +74,9 @@ pub unsafe fn reset_handler() {
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-	// TODO: init GPIO here later, or use the Component architechture from Imix 
+	// TODO: init GPIO here later, AND use the Component architechture from Imix 
 	// that also looks quite nice.
+	//COMPLETE GPIO INIT HEREEEE!!!!!!!!!!!!!!!!!!
 	
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
@@ -85,7 +86,7 @@ pub unsafe fn reset_handler() {
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
 	let platform = Platform {
-	        //gpio: gpio, //FIXME: once you init GPIO
+	        gpio: gpio, //FIXME: once you init GPIO
 	    };
 	let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
 	

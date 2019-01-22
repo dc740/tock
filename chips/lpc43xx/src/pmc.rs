@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::common::registers::{ReadWrite, register_bitfields};
     /// Power Management Controller (PMC)
 #[repr(C)]
 struct PmcRegisters {

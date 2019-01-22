@@ -3,6 +3,8 @@
 	<name>lpc43xx</name>
 	<comment></comment>
 	<projects>
+		<project>edu-ciaa</project>
+		<project>tock</project>
 	</projects>
 	<buildSpec>
 	</buildSpec>
