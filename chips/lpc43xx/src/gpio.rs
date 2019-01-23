@@ -381,28 +381,28 @@ pins: [
 /// the default Function that sets it as GPIO, as documented in:
 /// UM10503 Chapter 17: LPC43xx/LPC43Sxx System Control Unit (SCU)/ IO configuration
 pub struct GPIOPin {
-	portName: u32,
-	pinName: u32,
+	port_name: u32,
+	pin_name: u32,
 	func: FieldValue<u32, SFSP::Register>,
-	gpioPort: u32,
-	gpioPin: u32,
+	gpio_port: u32,
+	gpio_pin: u32,
     client_data: Cell<usize>,
     client: OptionalCell<&'static hil::gpio::Client>,
 }
 
 impl GPIOPin {
     const fn new(
-	portName: u32,
-	pinName: u32,
+	port_name: u32,
+	pin_name: u32,
 	func: FieldValue<u32, SFSP::Register>,
-	gpioPort: u32,
-	gpioPin: u32) -> GPIOPin {
+	gpio_port: u32,
+	gpio_pin: u32) -> GPIOPin {
         GPIOPin {
-			portName: portName,
-			pinName: pinName,
+			port_name: port_name,
+			pin_name: pin_name,
 			func: func,
-			gpioPort: gpioPort,
-			gpioPin: gpioPin,
+			gpio_port: gpio_port,
+			gpio_pin: gpio_pin,
             client_data: Cell::new(0),
             client: OptionalCell::empty(),
         }
@@ -413,12 +413,12 @@ impl GPIOPin {
     }
 
 	pub fn enable(&self) {
-        let sfsp = &SCU_BASE.sfsp[self.portName as usize][self.pinName as usize];
+        let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
 		sfsp.write(self.func + SFSP::ZIF::DisableInputGlitchFilter + SFSP::EZI::EnableInputBuffer); 
     }
 
     pub fn disable(&self) {
-        let sfsp = &SCU_BASE.sfsp[self.portName as usize][self.pinName as usize];
+        let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
 		sfsp.write(SFSP::MODE::Function0Default +
 					SFSP::EPD::DisablePullDown +
 					SFSP::EPUN::EnablePullUpEnableBothPullDownResistorAndPullUpResistorForRepeaterMode +
@@ -427,56 +427,76 @@ impl GPIOPin {
 					SFSP::EHD::NormalDrive4MADriveStrength);
     }
     pub fn make_output(&self) {
-		let sfsp = &SCU_BASE.sfsp[self.portName as usize][self.pinName as usize];
+		let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
 		sfsp.modify(SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown);
 		// Set pin bit in dir to 1 to set an output direction
 		// and use these extra steps to leave the other values untouched
-		let gpioDir = &GPIO_PORT_BASE.dir[self.gpioPort as usize];
-		let output_mode = FieldValue::<u32, ()>::new(1 << self.gpioPin, 0x0, 1);
-		gpioDir.modify(output_mode)
+		let gpio_dir = &GPIO_PORT_BASE.dir[self.gpio_port as usize];
+		let output_mode = FieldValue::<u32, ()>::new(1 << self.gpio_pin, 0x0, 1);
+		gpio_dir.modify(output_mode)
     }
 
     pub fn make_input(&self) {
-		let sfsp = &SCU_BASE.sfsp[self.portName as usize][self.pinName as usize];
+		let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
         sfsp.modify(SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown);
 		// Set pin bit in dir to 0 to set an input direction
 		// and use these extra steps to leave the other values untouched
-		let gpioDir = &GPIO_PORT_BASE.dir[self.gpioPort as usize];
-		let input_mode = FieldValue::<u32, ()>::new(1 << self.gpioPin, 0x0, 0);
-		gpioDir.modify(input_mode)
+		let gpio_dir = &GPIO_PORT_BASE.dir[self.gpio_port as usize];
+		let input_mode = FieldValue::<u32, ()>::new(1 << self.gpio_pin, 0x0, 0);
+		gpio_dir.modify(input_mode)
     }
 
 	/// Called by hil::Controller::configure to set pin function
-    pub fn select_peripheral(&self, function: u32) {
-		//let sfsp: unsafe { StaticRef::new((SCU_BASE + self.portName * 32 * 4 + self.pinName * 4) as *const ReadWrite) }
-		let sfsp = &SCU_BASE.sfsp[self.portName as usize][self.pinName as usize];
-		sfsp.set(function);
+    pub fn select_peripheral(&self, function: FieldValue<u32, SFSP::Register>) {
+		//let sfsp: unsafe { StaticRef::new((SCU_BASE + self.port_name * 32 * 4 + self.pin_name * 4) as *const ReadWrite) }
+		let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
+		sfsp.write(function);
     }
 
     pub fn enable_pull_down(&self) {
-		let sfsp = &SCU_BASE.sfsp[self.portName as usize][self.pinName as usize];
+		let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
 		sfsp.modify(SFSP::EPD::EnablePullDownEnableBothPullDownResistorAndPullUpResistorForRepeaterMode);
     }
 
     pub fn disable_pull_down(&self) {
-        let sfsp = &SCU_BASE.sfsp[self.portName as usize][self.pinName as usize];
+        let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
 		sfsp.modify(SFSP::EPD::DisablePullDown);
     }
 
     pub fn enable_pull_up(&self) {
-        let sfsp = &SCU_BASE.sfsp[self.portName as usize][self.pinName as usize];
+        let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
 		sfsp.modify(SFSP::EPUN::EnablePullUpEnableBothPullDownResistorAndPullUpResistorForRepeaterMode);
     }
 
     pub fn disable_pull_up(&self) {
-        let sfsp = &SCU_BASE.sfsp[self.portName as usize][self.pinName as usize];
+        let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
 		sfsp.modify(SFSP::EPUN::DisablePullUp);
     }
 
+    pub fn read(&self) -> bool {
+        let b = &GPIO_PORT_BASE.b[self.gpio_port as usize][self.gpio_pin as usize];
+		b.get() != 0
+    }
+
+    pub fn toggle(&self) {
+		let b = &GPIO_PORT_BASE.b[self.gpio_port as usize][self.gpio_pin as usize];
+        let val = self.read();
+		b.set((val as u8 == 0) as u8)
+    }
+
+    pub fn set(&self) {
+        let b = &GPIO_PORT_BASE.b[self.gpio_port as usize][self.gpio_pin as usize];
+		b.set(1)
+    }
+
+    pub fn clear(&self) {
+        let b = &GPIO_PORT_BASE.b[self.gpio_port as usize][self.gpio_pin as usize];
+		b.set(0)
+    }
 }
 
 impl hil::Controller for GPIOPin {
-    type Config = u32;
+    type Config = FieldValue<u32, SFSP::Register>;
 
     fn configure(&self, config: Self::Config) {
         self.select_peripheral(config)
@@ -485,7 +505,7 @@ impl hil::Controller for GPIOPin {
 
 impl hil::gpio::PinCtl for GPIOPin {
     fn set_input_mode(&self, mode: hil::gpio::InputMode) {
-		let sfsp = &SCU_BASE.sfsp[self.portName as usize][self.pinName as usize];
+		let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
         match mode {
             hil::gpio::InputMode::PullUp => {
 				sfsp.modify(SFSP::EPD::DisablePullDown + SFSP::EPUN::EnablePullUpEnableBothPullDownResistorAndPullUpResistorForRepeaterMode);
