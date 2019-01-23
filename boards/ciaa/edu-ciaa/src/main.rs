@@ -12,6 +12,10 @@ extern crate lpc43xx;
 use kernel::capabilities;
 use core::panic::PanicInfo;
 
+mod components;
+
+use components::gpio::GpioComponent;
+use kernel::component::Component;
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -46,6 +50,7 @@ impl kernel::Platform for Platform {
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {
         match driver_num {
+			capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
     }
@@ -74,9 +79,7 @@ pub unsafe fn reset_handler() {
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-	// TODO: init GPIO here later, AND use the Component architechture from Imix 
-	// that also looks quite nice.
-	//COMPLETE GPIO INIT HEREEEE!!!!!!!!!!!!!!!!!!
+	let gpio = GpioComponent::new(board_kernel).finalize();
 	
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
@@ -86,7 +89,7 @@ pub unsafe fn reset_handler() {
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
 	let platform = Platform {
-	        gpio: gpio, //FIXME: once you init GPIO
+	        gpio: gpio,
 	    };
 	let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
 	
