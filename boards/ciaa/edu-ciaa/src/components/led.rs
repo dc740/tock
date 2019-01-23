@@ -45,7 +45,7 @@ impl Component for LedComponent {
         );
 		for &(led, _) in led_pins.iter() {
 			led.make_output();
-			led.clear()
+			led.clear();
         }
         led
     }
