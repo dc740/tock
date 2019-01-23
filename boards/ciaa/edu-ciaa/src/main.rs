@@ -13,8 +13,10 @@ use kernel::capabilities;
 use core::panic::PanicInfo;
 
 mod components;
-
+use components::button::ButtonComponent;
 use components::gpio::GpioComponent;
+use components::led::LedComponent;
+
 use kernel::component::Component;
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -42,6 +44,8 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 /// Supported drivers by the platform
 pub struct Platform {
 	gpio: &'static capsules::gpio::GPIO<'static, lpc43xx::gpio::GPIOPin>,
+    led: &'static capsules::led::LED<'static, lpc43xx::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static, lpc43xx::gpio::GPIOPin>,
 }
 
 impl kernel::Platform for Platform {
@@ -50,7 +54,9 @@ impl kernel::Platform for Platform {
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
 			capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             _ => f(None),
         }
     }
@@ -80,7 +86,9 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
 	let gpio = GpioComponent::new(board_kernel).finalize();
-	
+    let led = LedComponent::new().finalize();
+    let button = ButtonComponent::new(board_kernel).finalize();
+
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let process_management_capability =
@@ -90,6 +98,8 @@ pub unsafe fn reset_handler() {
 
 	let platform = Platform {
 	        gpio: gpio,
+			led: led,
+			button: button,
 	    };
 	let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
 	

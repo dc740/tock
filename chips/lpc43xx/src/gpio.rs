@@ -370,7 +370,8 @@ pins: [
     ],
 };
 
-
+//TODO: Write a new port with all non-GPIO pins so we can use the
+//same interface to configure them. Or find where else to put them.
 
 /// Each pin consists of a name for the port and pin that is globally
 /// used to refer to it even when the functionality may be different.
@@ -496,10 +497,13 @@ impl GPIOPin {
 }
 
 impl hil::Controller for GPIOPin {
-    type Config = FieldValue<u32, SFSP::Register>;
-
+    type Config = Option<FieldValue<u32, SFSP::Register>>;
+	/// Configure a function, or enable the pin as a GPIO
     fn configure(&self, config: Self::Config) {
-        self.select_peripheral(config)
+        match config {
+            Some(c) => self.select_peripheral(c),
+            None => self.enable(),
+        }
     }
 }
 
