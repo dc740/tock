@@ -31,40 +31,28 @@ Once you have all software installed, you should be able to simply run
 
 ### Programming user-level applications
 
-You can program an application via OpenOCD:
- 1. via `tockloader`:
+You can program an application via OpenOCD with `tockloader`:
+ 
 
-    ```bash
-    $ cd libtock-c/examples/<app>
-    $ make
-    $ tockloader  install blink --openocd --arch cortex-m4 --board edu-ciaa --openocd-board ftdi_lpc4337.cfg
-    ```
-
+```bash
+$ cd libtock-c/examples/<app>
+$ make
+$ tockloader  install blink --openocd --arch cortex-m4 --board edu-ciaa --openocd-board ftdi_lpc4337.cfg -a 0x000000001a040000 --openocd-options "noreset" --page-size 512
+```
 
 If you run this in the application folder, `tockloader` will automatically
-find the tab to flash, otherwise you need to specify the path.
+find the tab to flash, otherwise you need to specify the path. In this case it will download `blink` for you.
 
-### Debugging the kernel
+### Debugging the kernel from command line
 
-To debug 
+There are two good ways of debugging the kernel. You can use the command line gdb or Eclipse to do it.
 
-1. Configure Eclipse IDE with the GNU MCU extensions (Help -> Eclipse Marketplace -> search for "GNU  MCU Eclipse"), and run the "OpenOCD GDB Debugging" target.
-2. Set arm-none-eabi-gdb is available and selected as debugger
-3. Add this line to the Debugger config options `-f /usr/local/share/openocd/scripts/board/ftdi_lpc4337.cfg`
-4. Select the edu-ciaa kernel elf so the debugger can follow you through the Rust code in the IDE. `boards/ciaa/edu-ciaa/target/thumbv7em-none-eabi/release/edu-ciaa.elf`
-5. Make sure your Debug configuration has the SVD file in the 'SVD Path' tab so you can see the registers
-6. Set the C++ settings so the build directory is the edu-ciaa board directory, so the incremental build doesn't throw an error preventing you from going into debug mode.
-
-For extra instructions check:
-http://www.proyecto-ciaa.com.ar/devwiki/doku.php?id=repo%3Aconfiguracion%3Adebug
-
-Alternatively you can do
-`/usr/bin/openocd -c gdb_port 3333 -c telnet_port 4444 -c tcl_port 6666 -f /home/dc740/CIAA/repos/tock/boards/ciaa/edu-ciaa/ftdi_lpc4337.cfg`
-
+To debug from the command line:
+1. Start an openocd debug server (point to the right .cfg file):
+`/usr/bin/openocd -c gdb_port 3333 -c telnet_port 4444 -c tcl_port 6666 -f <full_path>/ftdi_lpc4337.cfg`
+2. Start GDB
 `arm-none-eabi-gdb --tui --nx target/thumbv7em-none-eabi/release/edu-ciaa`
-
-
-Then run these commands in gdb to debug without Eclipse:
+3. Run these commands in gdb to start debugging:
 
 ```
 target remote localhost:3333
@@ -73,7 +61,16 @@ monitor reset halt
 layout split
 ```
 
-To go through the assembly use `si` and `ni` to step through the machine instructions instead of the rust code.
+### Debugging the kernel from Eclipse
+1. Configure Eclipse IDE with `Corrosion` and the `GNU MCU extensions` plugins. (Help -> Eclipse Marketplace -> search for "GNU  MCU Eclipse" and "Corrosion"). Once those two plugins are installed open the debug configurations and add a new "OpenOCD GDB Debugging" target.
+2. Double check arm-none-eabi-gdb is available and selected as debugger in the configuration
+3. Add this line to the Debugger config options `-f /usr/local/share/openocd/scripts/board/ftdi_lpc4337.cfg`
+4. Select the edu-ciaa kernel so the debugger can follow you through the Rust code in the IDE. `boards/ciaa/edu-ciaa/target/thumbv7em-none-eabi/release/edu-ciaa`
+5. Make sure your debug configuration has the SVD file in the 'SVD Path' tab
+6. Check in the C++ settings that the build directory is the 'edu-ciaa' board directory (not the root of the project) so the incremental build system doesn't throw an error preventing you from going into debug mode.
+
+For extra instructions check:
+http://www.proyecto-ciaa.com.ar/devwiki/doku.php?id=repo%3Aconfiguracion%3Adebug
 
 
 #### Debugging Tricks
