@@ -433,7 +433,7 @@ impl GPIOPin {
 		// Set pin bit in dir to 1 to set an output direction
 		// and use these extra steps to leave the other values untouched
 		let gpio_dir = &GPIO_PORT_BASE.dir[self.gpio_port as usize];
-		let output_mode = FieldValue::<u32, ()>::new(1 << self.gpio_pin, 0x0, 1);
+		let output_mode = FieldValue::<u32, ()>::new(0x1, self.gpio_pin as usize, 0x1);
 		gpio_dir.modify(output_mode)
     }
 
@@ -443,7 +443,7 @@ impl GPIOPin {
 		// Set pin bit in dir to 0 to set an input direction
 		// and use these extra steps to leave the other values untouched
 		let gpio_dir = &GPIO_PORT_BASE.dir[self.gpio_port as usize];
-		let input_mode = FieldValue::<u32, ()>::new(1 << self.gpio_pin, 0x0, 0);
+		let input_mode = FieldValue::<u32, ()>::new(0x1, self.gpio_pin as usize, 0x0);
 		gpio_dir.modify(input_mode)
     }
 

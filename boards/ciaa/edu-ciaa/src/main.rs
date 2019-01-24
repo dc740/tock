@@ -10,7 +10,6 @@ extern crate cortexm4;
 extern crate lpc43xx;
 
 use kernel::capabilities;
-use core::panic::PanicInfo;
 
 mod components;
 use components::button::ButtonComponent;
@@ -21,12 +20,8 @@ use kernel::component::Component;
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
-#[cfg(not(test))]
-#[panic_handler]
-#[no_mangle]
-pub unsafe extern "C" fn panic_fmt(_: &PanicInfo) -> ! {
-	loop { }
-}
+#[macro_use]
+pub mod panic;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]

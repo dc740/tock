@@ -35,7 +35,7 @@ impl Component for LedComponent {
             [(&lpc43xx::gpio::GPIO5[0],  led::ActivationMode::ActiveHigh),
 			 (&lpc43xx::gpio::GPIO5[1],  led::ActivationMode::ActiveHigh),
 			 (&lpc43xx::gpio::GPIO5[2],  led::ActivationMode::ActiveHigh),
-			 (&lpc43xx::gpio::GPIO0[14], led::ActivationMode::ActiveHigh), //FIXME: doesnt work
+			 (&lpc43xx::gpio::GPIO0[14], led::ActivationMode::ActiveHigh),
 			 (&lpc43xx::gpio::GPIO1[11], led::ActivationMode::ActiveHigh),
 			 (&lpc43xx::gpio::GPIO1[12], led::ActivationMode::ActiveHigh)
 			]
