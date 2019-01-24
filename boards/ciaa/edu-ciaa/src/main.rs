@@ -28,8 +28,8 @@ pub mod panic;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-// Number of concurrent processes this platform supports. 1 by now. we can increase this later
-const NUM_PROCS: usize = 1;
+// Number of concurrent processes this platform supports. 4 for now. we can increase this later
+const NUM_PROCS: usize = 4;
 
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 8192] = [0; 8192];
@@ -38,10 +38,10 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 
 /// Supported drivers by the platform
 pub struct Platform {
-	button: &'static capsules::button::Button<'static, lpc43xx::gpio::GPIOPin>,
-	//gpio: &'static capsules::gpio::GPIO<'static, lpc43xx::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static, lpc43xx::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, lpc43xx::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, lpc43xx::gpio::GPIOPin>,
-    
+    ipc: kernel::ipc::IPC,
 }
 
 impl kernel::Platform for Platform {
@@ -51,8 +51,9 @@ impl kernel::Platform for Platform {
     {
         match driver_num {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
-			//capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -67,9 +68,11 @@ impl kernel::Platform for Platform {
 #[no_mangle]
 #[inline(never)]
 pub unsafe fn reset_handler() {
-	lpc43xx::init();
+    lpc43xx::init();
 
-/*    lpc43xx::pmc::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
+/*
+    TODO: set frecuency, clocks, etc
+    lpc43xx::pmc::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
         frequency: sam4l::pm::OscillatorFrequency::Frequency16MHz,
         startup_mode: sam4l::pm::OscillatorStartup::FastStart,
     });
@@ -77,13 +80,10 @@ pub unsafe fn reset_handler() {
     // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
 */
-    //set_pin_primary_functions();
-    //    debug!("Starting virtual read test.");
-    //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-	let button = ButtonComponent::new(board_kernel).finalize();
-	//let gpio = GpioComponent::new(board_kernel).finalize();
+    let button = ButtonComponent::new(board_kernel).finalize();
+    let gpio = GpioComponent::new(board_kernel).finalize();
     let led = LedComponent::new().finalize();
     
 
@@ -94,16 +94,17 @@ pub unsafe fn reset_handler() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
-	let platform = Platform {
-			button: button,
-	        //gpio: gpio,
-			led: led,
-	    };
-	let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
-	
-	/* TODO: implement UART so we get debugging messages there
-	DO NOT USE debug! until we do this!
-	let debug_wrapper = static_init!(
+    let platform = Platform {
+            button: button,
+            gpio: gpio,
+            led: led,
+            ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        };
+    let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
+    
+    /* TODO: implement UART so we get debugging messages there
+    DO NOT USE debug! until we do this!
+    let debug_wrapper = static_init!(
         kernel::debug::DebugWriterWrapper,
         kernel::debug::DebugWriterWrapper::new(debugger)
     );
@@ -127,10 +128,7 @@ pub unsafe fn reset_handler() {
     board_kernel.kernel_loop(
         &platform,
         chip,
-        Some(&kernel::ipc::IPC::new(
-            board_kernel,
-            &memory_allocation_capability,
-        )),
+        Some(&platform.ipc),
         &main_loop_capability,
     );
 }
