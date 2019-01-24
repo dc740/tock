@@ -46,14 +46,34 @@ find the tab to flash, otherwise you need to specify the path.
 
 ### Debugging the kernel
 
-To debug simply configure Eclipse IDE with the GNU MCU extensions, and run
-the "OpenOCD GDB Debugging" target from there.
+To debug 
 
-Don't forget to add this line to the Debugger config options
--f /usr/local/share/openocd/scripts/board/ftdi_lpc4337.cfg
+1. Configure Eclipse IDE with the GNU MCU extensions (Help -> Eclipse Marketplace -> search for "GNU  MCU Eclipse"), and run the "OpenOCD GDB Debugging" target.
+2. Set arm-none-eabi-gdb is available and selected as debugger
+3. Add this line to the Debugger config options `-f /usr/local/share/openocd/scripts/board/ftdi_lpc4337.cfg`
+4. Select the edu-ciaa kernel elf so the debugger can follow you through the Rust code in the IDE. `boards/ciaa/edu-ciaa/target/thumbv7em-none-eabi/release/edu-ciaa.elf`
+5. Make sure your Debug configuration has the SVD file in the 'SVD Path' tab so you can see the registers
+6. Set the C++ settings so the build directory is the edu-ciaa board directory, so the incremental build doesn't throw an error preventing you from going into debug mode.
 
-And select the edu-ciaa kernel binary so the debugger can follow you
-through the Rust code in the IDE.
+For extra instructions check:
+http://www.proyecto-ciaa.com.ar/devwiki/doku.php?id=repo%3Aconfiguracion%3Adebug
+
+Alternatively you can do
+`/usr/bin/openocd -c gdb_port 3333 -c telnet_port 4444 -c tcl_port 6666 -f /home/dc740/CIAA/repos/tock/boards/ciaa/edu-ciaa/ftdi_lpc4337.cfg`
+
+`arm-none-eabi-gdb --tui --nx target/thumbv7em-none-eabi/release/edu-ciaa`
+
+
+Then run these commands in gdb to debug without Eclipse:
+
+```
+target remote localhost:3333
+set mem inaccessible-by-default off
+monitor reset halt
+layout split
+```
+
+To go through the assembly use `si` and `ni` to step through the machine instructions instead of the rust code.
 
 
 #### Debugging Tricks

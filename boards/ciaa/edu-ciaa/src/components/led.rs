@@ -32,21 +32,18 @@ impl Component for LedComponent {
     unsafe fn finalize(&mut self) -> Self::Output {
         let led_pins = static_init!(
             [(&'static lpc43xx::gpio::GPIOPin, led::ActivationMode); 6],
-            [(&lpc43xx::gpio::GPIO5[0], led::ActivationMode::ActiveHigh),
-			(&lpc43xx::gpio::GPIO5[1], led::ActivationMode::ActiveHigh),
-			(&lpc43xx::gpio::GPIO5[2], led::ActivationMode::ActiveHigh),
-			(&lpc43xx::gpio::GPIO0[14], led::ActivationMode::ActiveHigh),
-			(&lpc43xx::gpio::GPIO1[11], led::ActivationMode::ActiveHigh),
-			(&lpc43xx::gpio::GPIO1[12], led::ActivationMode::ActiveHigh)]
+            [(&lpc43xx::gpio::GPIO5[0],  led::ActivationMode::ActiveHigh),
+			 (&lpc43xx::gpio::GPIO5[1],  led::ActivationMode::ActiveHigh),
+			 (&lpc43xx::gpio::GPIO5[2],  led::ActivationMode::ActiveHigh),
+			 (&lpc43xx::gpio::GPIO0[14], led::ActivationMode::ActiveHigh), //FIXME: doesnt work
+			 (&lpc43xx::gpio::GPIO1[11], led::ActivationMode::ActiveHigh),
+			 (&lpc43xx::gpio::GPIO1[12], led::ActivationMode::ActiveHigh)
+			]
         );
         let led = static_init!(
             led::LED<'static, lpc43xx::gpio::GPIOPin>,
             led::LED::new(led_pins)
         );
-		for &(led, _) in led_pins.iter() {
-			led.make_output();
-			led.clear();
-        }
         led
     }
 }
