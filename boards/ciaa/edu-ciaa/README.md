@@ -57,6 +57,7 @@ To debug from the command line:
 ```
 target remote localhost:3333
 set mem inaccessible-by-default off
+monitor arm semihosting enable
 monitor reset halt
 layout split
 ```

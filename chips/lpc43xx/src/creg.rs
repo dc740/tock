@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields, FieldValue};
     /// Configuration Registers (CREG)
 #[repr(C)]
 struct CregRegisters {
@@ -16,9 +16,9 @@ creg5: ReadWrite<u32, CREG5::Register>,
 /// DMA mux control
 dmamux: ReadWrite<u32, DMAMUX::Register>,
 /// Flash accelerator configuration register for flash bank A
-flashcfga: ReadWrite<u32, FLASHCFGA::Register>,
+flashcfga: ReadWrite<u32, FLASHCFG::Register>,
 /// Flash accelerator configuration register for flash bank B
-flashcfgb: ReadWrite<u32, FLASHCFGB::Register>,
+flashcfgb: ReadWrite<u32, FLASHCFG::Register>,
 /// ETB RAM configuration
 etbcfg: ReadWrite<u32>,
 /// Chip configuration register 6. Controls multiple functions : Ethernet interface,
@@ -119,13 +119,13 @@ CREG0 [
     /// SAMPLE pin input/output control
     SAMPLECTRL OFFSET(12) NUMBITS(2) [
         /// Reserved
-        Reserved = 0,
+        Reserved_0 = 0,
         /// Sample output from the event monitor/recorder.
         SampleOutputFromTheEventMonitorRecorder = 1,
         /// Output from the event router.
         OutputFromTheEventRouter = 2,
         /// Reserved.
-        Reserved = 3
+        Reserved_1 = 3
     ],
     /// WAKEUP0 pin input/output control
     WAKEUP0CTRL OFFSET(14) NUMBITS(2) [
@@ -343,7 +343,7 @@ DMAMUX [
         Timer3Match0 = 3
     ]
 ],
-FLASHCFGA [
+FLASHCFG [
     /// Flash access time. The value of this field plus 1 gives the number of BASE_M4_CL
     FLASHTIM OFFSET(12) NUMBITS(4) [
         /// 1 BASE_M4_CLK clock. Use for BASE_M4_CLK up to 21 MHz.
@@ -364,39 +364,7 @@ FLASHCFGA [
         _8BASE_M4_CLKClocksUseForBASE_M4_CLKUpTo172MHz = 7,
         /// 9 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 193 MHz.
         _9BASE_M4_CLKClocksUseForBASE_M4_CLKUpTo193MHz = 8,
-        /// 10 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 204 MHz. Safe setting for all a
-        _10_BASE_M4_CLK_CLOCK = 9
-    ],
-    /// Flash bank A power control
-    POW OFFSET(31) NUMBITS(1) [
-        /// Power-down
-        PowerDown = 0,
-        /// Active (Default)
-        ActiveDefault = 1
-    ]
-],
-FLASHCFGB [
-    /// Flash access time. The value of this field plus 1 gives the number of BASE_M4_CL
-    FLASHTIM OFFSET(12) NUMBITS(4) [
-        /// 1 BASE_M4_CLK clock. Use for BASE_M4_CLK up to 21 MHz.
-        _1BASE_M4_CLKClockUseForBASE_M4_CLKUpTo21MHz = 0,
-        /// 2 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 43 MHz.
-        _2BASE_M4_CLKClocksUseForBASE_M4_CLKUpTo43MHz = 1,
-        /// 3 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 64 MHz.
-        _3BASE_M4_CLKClocksUseForBASE_M4_CLKUpTo64MHz = 2,
-        /// 4 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 86 MHz.
-        _4BASE_M4_CLKClocksUseForBASE_M4_CLKUpTo86MHz = 3,
-        /// 5 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 107 MHz.
-        _5BASE_M4_CLKClocksUseForBASE_M4_CLKUpTo107MHz = 4,
-        /// 6 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 129 MHz.
-        _6BASE_M4_CLKClocksUseForBASE_M4_CLKUpTo129MHz = 5,
-        /// 7 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 150 MHz.
-        _7BASE_M4_CLKClocksUseForBASE_M4_CLKUpTo150MHz = 6,
-        /// 8 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 172 MHz.
-        _8BASE_M4_CLKClocksUseForBASE_M4_CLKUpTo172MHz = 7,
-        /// 9 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 193 MHz.
-        _9BASE_M4_CLKClocksUseForBASE_M4_CLKUpTo193MHz = 8,
-        /// 10 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 204 MHz. Safe setting for all a
+        /// 10 BASE_M4_CLK clocks. Use for BASE_M4_CLK up to 204 MHz. Flash accesses use 10 CPU clocks. Safe setting for any allowed conditions
         _10_BASE_M4_CLK_CLOCK = 9
     ],
     /// Flash bank A power control
@@ -461,3 +429,26 @@ CREG6 [
 ];
 const CREG_BASE: StaticRef<CregRegisters> =
     unsafe { StaticRef::new(0x40043000 as *const CregRegisters) };
+    
+/// This is just a helper function to Reset and enable 32Khz and 1khz oscillators
+pub fn enable_32khz_1khz_osc() {
+    CREG_BASE.creg0.modify(CREG0::RESET32KHZ::ClearReset + CREG0::PD32KHZ::Powered);
+    CREG_BASE.creg0.modify(CREG0::EN32KHZ::_32KHzOutputEnabled + CREG0::EN1KHZ::_1KHzOutputEnabled);
+}
+
+/// Configures the onboard Flash Accelerator in flash-based LPC18xx/LPC43xx parts.
+/// This function should be called with the higher frequency before the clock frequency is
+/// increased and it should be called with the new lower value after the clock frequency is
+/// decreased.
+/// Check FLASHCFG register definition for details on possible values.
+pub fn set_flash_acceleration(flashtim: FieldValue<u32, FLASHCFG::Register>) {
+    CREG_BASE.flashcfga.modify(flashtim);
+    CREG_BASE.flashcfgb.modify(flashtim);
+}
+
+/// This sounds oddly specific, and it is.
+/// I don't want to make CREG public, and I only needed
+/// this.
+pub fn is_creg6_rmii_mode() -> bool {
+    CREG_BASE.creg6.matches_all(CREG6::ETHMODE::RMII)
+}

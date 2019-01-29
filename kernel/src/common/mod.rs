@@ -11,6 +11,7 @@ pub mod registers {
     pub use tock_registers::register_bitfields;
     pub use tock_registers::registers::{Field, FieldValue, LocalRegisterCopy};
     pub use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
+    pub use tock_registers::registers::{IntLike, RegisterLongName};
 }
 
 pub mod deferred_call;

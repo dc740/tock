@@ -1,6 +1,8 @@
-
+use cortexm4::support;
 use kernel::common::StaticRef;
-use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields, FieldValue, IntLike, RegisterLongName};
+use creg::is_creg6_rmii_mode;
+
     /// Clock Generation Unit (CGU)
 #[repr(C)]
 struct CguRegisters {
@@ -34,61 +36,61 @@ pll1_ctrl: ReadWrite<u32, PLL1_CTRL::Register>,
 /// Integer divider A control register
 idiva_ctrl: ReadWrite<u32, IDIVA_CTRL::Register>,
 /// Integer divider B control register
-idivb_ctrl: ReadWrite<u32, IDIVB_CTRL::Register>,
+idivb_ctrl: ReadWrite<u32, IDIVBCD_CTRL::Register>,
 /// Integer divider C control register
-idivc_ctrl: ReadWrite<u32, IDIVC_CTRL::Register>,
+idivc_ctrl: ReadWrite<u32, IDIVBCD_CTRL::Register>,
 /// Integer divider D control register
-idivd_ctrl: ReadWrite<u32, IDIVD_CTRL::Register>,
+idivd_ctrl: ReadWrite<u32, IDIVBCD_CTRL::Register>,
 /// Integer divider E control register
 idive_ctrl: ReadWrite<u32, IDIVE_CTRL::Register>,
 /// Output stage 0 control register for base clock BASE_SAFE_CLK
-base_safe_clk: ReadOnly<u32, BASE_SAFE_CLK::Register>,
+base_safe_clk: ReadOnly<u32, BASE_CLK::Register>,
 /// Output stage 1 control register for base clock BASE_USB0_CLK
-base_usb0_clk: ReadWrite<u32, BASE_USB0_CLK::Register>,
+base_usb0_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage 2 control register for base clock BASE_PERIPH_CLK
-base_periph_clk: ReadWrite<u32, BASE_PERIPH_CLK::Register>,
+base_periph_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage 3 control register for base clock BASE_USB1_CLK
-base_usb1_clk: ReadWrite<u32, BASE_USB1_CLK::Register>,
+base_usb1_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_M4_CLK control register
-base_m4_clk: ReadWrite<u32, BASE_M4_CLK::Register>,
+base_m4_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_SPIFI_CLK control register
-base_spifi_clk: ReadWrite<u32, BASE_SPIFI_CLK::Register>,
+base_spifi_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_SPI_CLK control register
-base_spi_clk: ReadWrite<u32, BASE_SPI_CLK::Register>,
+base_spi_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_PHY_RX_CLK control register
-base_phy_rx_clk: ReadWrite<u32, BASE_PHY_RX_CLK::Register>,
+base_phy_rx_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_PHY_TX_CLK control register
-base_phy_tx_clk: ReadWrite<u32, BASE_PHY_TX_CLK::Register>,
+base_phy_tx_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_APB1_CLK control register
-base_apb1_clk: ReadWrite<u32, BASE_APB1_CLK::Register>,
+base_apb1_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_APB3_CLK control register
-base_apb3_clk: ReadWrite<u32, BASE_APB3_CLK::Register>,
+base_apb3_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_LCD_CLK control register
-base_lcd_clk: ReadWrite<u32, BASE_LCD_CLK::Register>,
+base_lcd_clk: ReadWrite<u32, BASE_CLK::Register>,
 _reserved1: [u8; 4],
 /// Output stage BASE_SDIO_CLK control register
-base_sdio_clk: ReadWrite<u32, BASE_SDIO_CLK::Register>,
+base_sdio_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_SSP0_CLK control register
-base_ssp0_clk: ReadWrite<u32, BASE_SSP0_CLK::Register>,
+base_ssp0_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_SSP1_CLK control register
-base_ssp1_clk: ReadWrite<u32, BASE_SSP1_CLK::Register>,
+base_ssp1_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_UART0_CLK control register
-base_uart0_clk: ReadWrite<u32, BASE_UART0_CLK::Register>,
+base_uart0_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_UART1_CLK control register
-base_uart1_clk: ReadWrite<u32, BASE_UART1_CLK::Register>,
+base_uart1_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_UART2_CLK control register
-base_uart2_clk: ReadWrite<u32, BASE_UART2_CLK::Register>,
+base_uart2_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_UART3_CLK control register
-base_uart3_clk: ReadWrite<u32, BASE_UART3_CLK::Register>,
+base_uart3_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage 20 control register for base clock BASE_OUT_CLK
-base_out_clk: ReadWrite<u32, BASE_OUT_CLK::Register>,
+base_out_clk: ReadWrite<u32, BASE_CLK::Register>,
 _reserved2: [u8; 16],
 /// Output stage 25 control register for base clock BASE_AUDIO_CLK
-base_audio_clk: ReadWrite<u32, BASE_AUDIO_CLK::Register>,
+base_audio_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage 25 control register for base clock BASE_CGU_OUT0_CLK
-base_cgu_out0_clk: ReadWrite<u32, BASE_CGU_OUT0_CLK::Register>,
+base_cgu_out0_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage 25 control register for base clock BASE_CGU_OUT1_CLK
-base_cgu_out1_clk: ReadWrite<u32, BASE_CGU_OUT1_CLK::Register>,
+base_cgu_out1_clk: ReadWrite<u32, BASE_CLK::Register>,
 }
 register_bitfields![u32,
 FREQ_MON [
@@ -466,85 +468,7 @@ IDIVA_CTRL [
         PLL1 = 9
     ]
 ],
-IDIVB_CTRL [
-    /// Integer divider power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Enabled. IDIV enabled (default)
-        EnabledIDIVEnabledDefault = 0,
-        /// Power-down
-        PowerDown = 1
-    ],
-    /// Integer divider B, C, D divider values (1/(IDIV + 1)) 0000 = 1 (default) 0001 =
-    IDIV OFFSET(2) NUMBITS(4) [],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock-source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0AUDIO
-        PLL0AUDIO = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12
-    ]
-],
-IDIVC_CTRL [
-    /// Integer divider power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Enabled. IDIV enabled (default)
-        EnabledIDIVEnabledDefault = 0,
-        /// Power-down
-        PowerDown = 1
-    ],
-    /// Integer divider B, C, D divider values (1/(IDIV + 1)) 0000 = 1 (default) 0001 =
-    IDIV OFFSET(2) NUMBITS(4) [],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock-source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0AUDIO
-        PLL0AUDIO = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12
-    ]
-],
-IDIVD_CTRL [
+IDIVBCD_CTRL [
     /// Integer divider power down
     PD OFFSET(0) NUMBITS(1) [
         /// Enabled. IDIV enabled (default)
@@ -622,94 +546,7 @@ IDIVE_CTRL [
         IDIVA = 12
     ]
 ],
-BASE_SAFE_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Enabled. Output stage enabled (default)
-        EnabledOutputStageEnabledDefault = 0,
-        /// Power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// IRC (default)
-        IRCDefault = 1
-    ]
-],
-BASE_USB0_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Enabled. Output stage enabled (default)
-        EnabledOutputStageEnabledDefault = 0,
-        /// Power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock-source selection.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// PLL0USB (default)
-        PLL0USBDefault = 7
-    ]
-],
-BASE_PERIPH_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Enabled. Output stage enabled (default)
-        EnabledOutputStageEnabledDefault = 0,
-        /// Power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0AUDIO
-        PLL0AUDIO = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_USB1_CLK [
+BASE_CLK [
     /// Output stage power down
     PD OFFSET(0) NUMBITS(1) [
         /// Enabled. Output stage enabled (default)
@@ -739,7 +576,7 @@ BASE_USB1_CLK [
         /// Crystal oscillator
         CrystalOscillator = 6,
         /// PLL0USB
-        PLL0USB = 7,
+        PLL0USBDefault = 7,
         /// PLL0AUDIO
         PLL0AUDIO = 8,
         /// PLL1
@@ -755,872 +592,344 @@ BASE_USB1_CLK [
         /// IDIVE
         IDIVE = 16
     ]
-],
-BASE_M4_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_SPIFI_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_SPI_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_PHY_RX_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_PHY_TX_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_APB1_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_APB3_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_LCD_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_SDIO_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_SSP0_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_SSP1_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_UART0_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_UART1_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_UART2_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_UART3_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Disabled. Autoblocking disabled
-        DisabledAutoblockingDisabled = 0,
-        /// Enabled. Autoblocking enabled
-        EnabledAutoblockingEnabled = 1
-    ],
-    /// Clock source selection. All other values are reserved.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_OUT_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Autoblocking disabled
-        AutoblockingDisabled = 0,
-        /// Autoblocking enabled
-        AutoblockingEnabled = 1
-    ],
-    /// Clock-source selection.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Reserved
-        Reserved = 5,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for USB)
-        PLL0ForUSB = 7,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_AUDIO_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Autoblocking disabled
-        AutoblockingDisabled = 0,
-        /// Autoblocking enabled
-        AutoblockingEnabled = 1
-    ],
-    /// Clock-source selection.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Reserved
-        Reserved = 5,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_CGU_OUT0_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Autoblocking disabled
-        AutoblockingDisabled = 0,
-        /// Autoblocking enabled
-        AutoblockingEnabled = 1
-    ],
-    /// Clock-source selection.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Reserved
-        Reserved = 5,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
-],
-BASE_CGU_OUT1_CLK [
-    /// Output stage power down
-    PD OFFSET(0) NUMBITS(1) [
-        /// Output stage enabled (default)
-        OutputStageEnabledDefault = 0,
-        /// power-down
-        PowerDown = 1
-    ],
-    /// Block clock automatically during frequency change
-    AUTOBLOCK OFFSET(11) NUMBITS(1) [
-        /// Autoblocking disabled
-        AutoblockingDisabled = 0,
-        /// Autoblocking enabled
-        AutoblockingEnabled = 1
-    ],
-    /// Clock-source selection.
-    CLK_SEL OFFSET(24) NUMBITS(5) [
-        /// 32 kHz oscillator
-        _32KHzOscillator = 0,
-        /// IRC (default)
-        IRCDefault = 1,
-        /// ENET_RX_CLK
-        ENET_RX_CLK = 2,
-        /// ENET_TX_CLK
-        ENET_TX_CLK = 3,
-        /// GP_CLKIN
-        GP_CLKIN = 4,
-        /// Reserved
-        Reserved = 5,
-        /// Crystal oscillator
-        CrystalOscillator = 6,
-        /// PLL0 (for audio)
-        PLL0ForAudio = 8,
-        /// PLL1
-        PLL1 = 9,
-        /// IDIVA
-        IDIVA = 12,
-        /// IDIVB
-        IDIVB = 13,
-        /// IDIVC
-        IDIVC = 14,
-        /// IDIVD
-        IDIVD = 15,
-        /// IDIVE
-        IDIVE = 16
-    ]
 ]
 ];
+
+
+/// CGU dividers
+/// CGU dividers provide an extra clock state where a specific clock can be
+/// divided before being routed to a peripheral group. A divider accepts an
+/// input clock and then divides it. To use the divided clock for a base clock
+/// group, use the divider as the input clock for the base clock (for example,
+/// use CLKIN_IDIVB, where CLKIN_MAINPLL might be the input into the divider).
+#[repr(C)]
+enum CHIP_CGU_IDIV {
+    /* CGU clock divider A */
+    ClkIdivA,     
+    /* CGU clock divider B */
+    ClkIdivB,
+    /* CGU clock divider A */
+    ClkIdivC,
+    /* CGU clock divider D */
+    ClkIdivD,
+    /* CGU clock divider E */
+    ClkIdivE,
+}
+
+/// Maximum clock frequency: 204Mhz
+pub const MAX_CLOCK_FREQ : u32 = 204000000;
+
+/// Internal oscillator frequency
+const CGU_IRC_FREQ : u32 = 12000000;
+
+const CRYSTAL_32K_FREQ_IN : u32 = 32 * 1024;
+
+/// Min CCO frequency of main PLL
+const PLL_MIN_CCO_FREQ : u32 = 156000000;
+
+/// Max CCO frequency of main PLL
+const PLL_MAX_CCO_FREQ : u32 = 320000000;
+
+
+/// System configuration variables used by chip driver for LPC43xx
+
+const OSCRATEIN : u32 = 12000000;
+const EXTRATEIN : u32 = 0;
+
 const CGU_BASE: StaticRef<CguRegisters> =
     unsafe { StaticRef::new(0x40050000 as *const CguRegisters) };
+
+/// Helper function to initialize all system clocks to a safe value
+pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_freq: u32, set_initial_clocks: bool){
+    //PartEq is not implemented for FieldValue. I wonder why
+    if clkin.value == BASE_CLK::CLK_SEL::CrystalOscillator.value && clkin.mask == BASE_CLK::CLK_SEL::CrystalOscillator.mask {
+        enable_crystal();
+    }
+    // Enable M4 clock
+    CGU_BASE.base_m4_clk.modify(clkin + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+    
+    // Shutdown main PLL
+    CGU_BASE.pll1_ctrl.modify(PLL1_CTRL::PD::PLL1PoweredDown);
+    
+    let ppll = calculate_main_pll_value(clkin, core_freq);
+    //TODO: Continue here
+}
+
+fn enable_crystal() {
+    let xtal_local_cpy = CGU_BASE.xtal_osc_ctrl.extract();
+    let mut xtal_fields = XTAL_OSC_CTRL::ENABLE::Enable + XTAL_OSC_CTRL::BYPASS::CrystalOperationWithCrystalConnectedDefault;
+    
+    if OSCRATEIN >= 20000000 {
+        xtal_fields = xtal_fields + XTAL_OSC_CTRL::HF::HIGH;  /* Set high frequency mode */
+    }
+    
+    /* Clear bypass mode before anything else */
+    if CGU_BASE.xtal_osc_ctrl.is_set(XTAL_OSC_CTRL::BYPASS){
+        CGU_BASE.xtal_osc_ctrl.modify(XTAL_OSC_CTRL::BYPASS::CrystalOperationWithCrystalConnectedDefault);
+    }
+    
+    /* Enable crystal oscillator */
+    CGU_BASE.xtal_osc_ctrl.modify_no_read(xtal_local_cpy, xtal_fields);
+        
+    //delay a little bit (at least 250uS)
+     for _ in 0..1000 {
+            support::nop();
+     }
+}
+
+fn calculate_main_pll_value(srcin: FieldValue<u32, BASE_CLK::Register>, freq: u32) -> FieldValue<u32, PLL1_CTRL::Register>{
+    let input_freq = get_clock_input_hz(srcin);
+    if input_freq > MAX_CLOCK_FREQ || input_freq < (PLL_MIN_CCO_FREQ / 16) || input_freq == 0 {
+       panic!("Unable to calculate main pll value!!!");
+    }
+    
+    let mut msel = PLL1_CTRL::MSEL.val(freq / input_freq);
+    let mut nsel = PLL1_CTRL::NSEL::_1;
+    let mut psel = PLL1_CTRL::PSEL::_1;
+    let mut config = PLL1_CTRL::DIRECT::Enabled + psel + nsel + msel;
+    
+    if freq < PLL_MIN_CCO_FREQ || (freq / input_freq) * input_freq != freq {
+        config = pll_get_frac(freq, input_freq); //recalculate the config
+        if u32::from(PLL1_CTRL::NSEL.val(u32::from(config))) == u32::from(PLL1_CTRL::NSEL::_1) {
+            panic!("Unable to calculate main pll value! nsel = 0");
+        }
+        nsel =  PLL1_CTRL::NSEL.val(u32::from(PLL1_CTRL::NSEL.val(u32::from(config))) - 1); //nsel = nsel - 1
+    }
+    
+    if u32::from(PLL1_CTRL::MSEL.val(u32::from(config))) == 0 {
+        panic!("Unable to calculate main pll value! msel = 0");
+    }
+
+    psel = PLL1_CTRL::PSEL.val(u32::from(config));
+    if u32::from(psel) != 0 {
+        psel =  PLL1_CTRL::PSEL.val(u32::from(PLL1_CTRL::PSEL.val(u32::from(config))) - 1); //psel = psel - 1
+    }
+
+    msel =  PLL1_CTRL::MSEL.val(u32::from(PLL1_CTRL::MSEL.val(u32::from(config))) - 1); //msel = msel - 1
+    config = PLL1_CTRL::DIRECT::Enabled + psel + nsel + msel;
+    config
+}
+
+fn get_clock_input_hz(clkin: FieldValue<u32, BASE_CLK::Register>) -> u32 {
+    let clk = u32::from(clkin);
+    let mut ret_val: u32 = 0;
+    // We can't use match here because the registers don't have Eq and PartialEq implemented
+    
+    if clk == u32::from(BASE_CLK::CLK_SEL::_32KHzOscillator){
+        ret_val = CRYSTAL_32K_FREQ_IN;
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::IRCDefault){
+        ret_val = CGU_IRC_FREQ;
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::ENET_RX_CLK){
+        if !is_creg6_rmii_mode() {
+            /* MII mode requires 25MHz clock */
+            ret_val = 25000000;
+        }
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::ENET_TX_CLK){
+        if is_creg6_rmii_mode() {
+            /* RMII uses 50 MHz */
+            ret_val = 50000000;
+        } else {
+            /* MII mode requires 25MHz clock */
+            ret_val = 25000000;
+        }
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::GP_CLKIN){
+        ret_val = EXTRATEIN;
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::CrystalOscillator){
+        ret_val = OSCRATEIN;
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::PLL0USBDefault){
+        // TODO: implement this. It should be stored somewhere after we setup the USB PLL, but who will be the owner?
+        //maybe create a different function for PLL0
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::PLL0AUDIO){
+        // TODO: implement this. It should be stored somewhere after we setup the USB PLL, but who will be the owner?
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::PLL1){
+        ret_val = get_main_pll_hz();
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::IDIVA){
+        ret_val = get_div_rate(CHIP_CGU_IDIV::ClkIdivA);
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::IDIVB){
+        ret_val = get_div_rate(CHIP_CGU_IDIV::ClkIdivB);
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::IDIVC){
+        ret_val = get_div_rate(CHIP_CGU_IDIV::ClkIdivC);
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::IDIVD){
+        ret_val = get_div_rate(CHIP_CGU_IDIV::ClkIdivD);
+    } else if clk == u32::from(BASE_CLK::CLK_SEL::IDIVE){
+        ret_val = get_div_rate(CHIP_CGU_IDIV::ClkIdivE);
+    }
+    ret_val
+}
+
+fn get_main_pll_hz() -> u32 {
+    let freq : u32 = get_clock_input_hz(BASE_CLK::CLK_SEL.val(CGU_BASE.pll1_ctrl.read(PLL1_CTRL::CLK_SEL)));
+    let msel : u32;
+    let nsel : u32;
+    let psel : u32;
+    let direct : u32;
+    let fbsel : u32;
+    let m : u32;
+    let n : u32;
+    let p : u32;
+    let ptab = [1, 2, 4, 8];
+    let ret_val;
+    msel = CGU_BASE.pll1_ctrl.read(PLL1_CTRL::MSEL);
+    nsel = CGU_BASE.pll1_ctrl.read(PLL1_CTRL::NSEL);
+    psel = CGU_BASE.pll1_ctrl.read(PLL1_CTRL::PSEL);
+    direct = CGU_BASE.pll1_ctrl.read(PLL1_CTRL::DIRECT);
+    fbsel = CGU_BASE.pll1_ctrl.read(PLL1_CTRL::FBSEL);
+    
+    m = msel + 1;
+    n = nsel + 1;
+    p = ptab[psel as usize];
+    if direct != 0 || fbsel != 0 {
+        ret_val = m * (freq / n);
+    } else {
+        ret_val = (m / (2 * p)) * (freq / n);
+    }
+    ret_val
+}
+
+fn get_div_rate(divider: CHIP_CGU_IDIV) -> u32 {
+    match divider {
+            CHIP_CGU_IDIV::ClkIdivA => {
+                let divider_source = CGU_BASE.idiva_ctrl.read(IDIVA_CTRL::CLK_SEL);
+                let divider_source_hz = get_clock_input_hz(BASE_CLK::CLK_SEL.val(divider_source));
+                let div = CGU_BASE.idiva_ctrl.read(IDIVA_CTRL::IDIV);
+                return divider_source_hz / (div + 1);
+            },
+            CHIP_CGU_IDIV::ClkIdivB => {
+                let divider_source = CGU_BASE.idivb_ctrl.read(IDIVBCD_CTRL::CLK_SEL);
+                let divider_source_hz = get_clock_input_hz(BASE_CLK::CLK_SEL.val(divider_source));
+                let div = CGU_BASE.idivb_ctrl.read(IDIVBCD_CTRL::IDIV);
+                return divider_source_hz / (div + 1);
+            },
+            CHIP_CGU_IDIV::ClkIdivC => {
+                let divider_source = CGU_BASE.idivc_ctrl.read(IDIVBCD_CTRL::CLK_SEL);
+                let divider_source_hz = get_clock_input_hz(BASE_CLK::CLK_SEL.val(divider_source));
+                let div = CGU_BASE.idivc_ctrl.read(IDIVBCD_CTRL::IDIV);
+                return divider_source_hz / (div + 1);
+            },
+            CHIP_CGU_IDIV::ClkIdivD => {
+                let divider_source = CGU_BASE.idivd_ctrl.read(IDIVBCD_CTRL::CLK_SEL);
+                let divider_source_hz = get_clock_input_hz(BASE_CLK::CLK_SEL.val(divider_source));
+                let div = CGU_BASE.idivd_ctrl.read(IDIVBCD_CTRL::IDIV);
+                return divider_source_hz / (div + 1);
+            },
+            CHIP_CGU_IDIV::ClkIdivE => {
+                let divider_source = CGU_BASE.idive_ctrl.read(IDIVE_CTRL::CLK_SEL);
+                let divider_source_hz = get_clock_input_hz(BASE_CLK::CLK_SEL.val(divider_source));
+                let div = CGU_BASE.idive_ctrl.read(IDIVE_CTRL::IDIV);
+                return divider_source_hz / (div + 1);
+            }
+    }
+
+}
+
+fn pll_get_frac(freq: u32, current_input_freq : u32) -> FieldValue<u32, PLL1_CTRL::Register> {
+    let diff_0 : u32;
+    let diff_1 : u32;
+    let diff_2 : u32;
+
+    /* Try direct mode */
+    let pll_config_0 = PLL1_CTRL::DIRECT::Enabled;
+    let (pll_freq_0, pll_config_0) = pll_calc_divs(freq, pll_config_0, current_input_freq);
+    if pll_freq_0 == freq {
+        return pll_config_0;
+    }
+    diff_0 = abs_sub(freq, pll_freq_0);
+    
+
+   /* Try non-Integer mode */
+   let pll_config_2 = PLL1_CTRL::FBSEL::PLL_OUT;
+   let (pll_freq_2, pll_config_2) = pll_calc_divs(freq, pll_config_2, current_input_freq);
+   if pll_freq_2 == freq {
+       return pll_config_2;
+   }
+   diff_2 = abs_sub(freq, pll_freq_2);
+   
+   /* Try integer mode. FIXME. Twice the same? I didn't understand what they tried to do here.*/
+   let pll_config_1 = PLL1_CTRL::FBSEL::PLL_OUT;
+   let (pll_freq_1, pll_config_1) = pll_calc_divs(freq, pll_config_1, current_input_freq);
+   if pll_freq_1 == freq {
+       return pll_config_1;
+   }
+   diff_1 = abs_sub(freq, pll_freq_1);
+
+   /* Find the min of 3 and return */
+   if diff_0 <= diff_1 {
+       if diff_0 <= diff_2 {
+           return pll_config_0;
+       } else {
+           return pll_config_2;
+       }
+   } else {
+       if diff_1 <= diff_2 {
+           return pll_config_1;
+       } else {
+           return pll_config_2;
+       }
+   }
+}
+
+fn pll_calc_divs(freq: u32, config: FieldValue<u32, PLL1_CTRL::Register>, current_input_freq : u32) -> (u32, FieldValue<u32, PLL1_CTRL::Register>)
+{
+
+    let mut prev : u32 = freq;
+    let mut calculated_freq : u32 = freq;
+    let mut new_config : FieldValue<u32, PLL1_CTRL::Register> = config;
+    /* When direct mode is set FBSEL should be a don't care */
+    if u32::from(PLL1_CTRL::DIRECT.val(u32::from(config))) == u32::from(PLL1_CTRL::DIRECT::Enabled) {
+        new_config = field_value_set::<PLL1_CTRL::Register>(new_config, PLL1_CTRL::FBSEL::CCOOutCCOOutputIsUsedAsFeedbackDividerInputClock);
+    }
+    for n in 1..5 {
+        for p in 0..4 {
+            for m in 1..257 {
+                let fcco : u32;
+                let fout : u32;
+                if u32::from(PLL1_CTRL::FBSEL.val(u32::from(new_config))) == u32::from(PLL1_CTRL::FBSEL::CCOOutCCOOutputIsUsedAsFeedbackDividerInputClock) {
+                    fcco = ((m << (p + 1)) * current_input_freq) / n;
+                } else {
+                    fcco = (m * current_input_freq) / n;
+                }
+                if fcco < PLL_MIN_CCO_FREQ {continue;}
+                if fcco > PLL_MAX_CCO_FREQ {break;}
+                if u32::from(PLL1_CTRL::DIRECT.val(u32::from(new_config))) == u32::from(PLL1_CTRL::DIRECT::Enabled) {
+                    fout = fcco;
+                } else {
+                    fout = fcco >> (p + 1);
+                }
+                //no std lib, and no std abs function...
+                let diff = abs_sub(freq, fout);
+                if diff < prev {
+                    let nsel = PLL1_CTRL::NSEL.val(n);
+                    let psel = PLL1_CTRL::PSEL.val(p + 1);
+                    let msel = PLL1_CTRL::FBSEL.val(m);
+                    calculated_freq = fout;
+                    new_config = field_value_set::<PLL1_CTRL::Register>(new_config, nsel + psel + msel);
+                    //ppll->fcco = fcco; not used
+                    prev = diff;
+                }
+            }
+        }
+    }
+    (calculated_freq, new_config)
+}
+
+/// We don't have std::num::abs so we implement this substraction manually
+fn abs_sub (a : u32, b : u32) -> u32 {
+    if a > b {
+        return a - b;
+    } else {
+        return b - a;
+    }
+}
+
+
+/// Replace bits in existing FieldValue by the bits and values from the second FieldValue.
+/// This is different than adding, since adding only performs an OR operation.
+/// This is also different than .modify, since the modify function for 
+/// FielValue types actually replaces the entire value with a new u32.
+/// 
+/// Note: IntLike and RegisterLongName were made public just for this
+fn field_value_set<R>(old: FieldValue<u32, R>, new : FieldValue<u32, R>) -> FieldValue<u32, R> where R: RegisterLongName {
+    let nmask = new.mask;
+    let omask = old.mask;
+    FieldValue::<u32, R>::new(omask | nmask, 0, (u32::from(old) & !nmask) | u32::from(new))
+}

@@ -69,17 +69,10 @@ impl kernel::Platform for Platform {
 #[inline(never)]
 pub unsafe fn reset_handler() {
     lpc43xx::init();
-
-/*
-    TODO: set frecuency, clocks, etc
-    lpc43xx::pmc::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
-        frequency: sam4l::pm::OscillatorFrequency::Frequency16MHz,
-        startup_mode: sam4l::pm::OscillatorStartup::FastStart,
-    });
-
-    // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
-    sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
-*/
+    lpc43xx::creg::set_flash_acceleration(lpc43xx::creg::FLASHCFG::FLASHTIM::_10_BASE_M4_CLK_CLOCK);
+    lpc43xx::cgu::board_setup_clocking(lpc43xx::cgu::BASE_CLK::CLK_SEL::CrystalOscillator, lpc43xx::cgu::MAX_CLOCK_FREQ, true);
+    lpc43xx::creg::enable_32khz_1khz_osc();
+    
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let button = ButtonComponent::new(board_kernel).finalize();

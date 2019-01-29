@@ -28,13 +28,7 @@ impl Chip for Lpc43xx {
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                /*if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    match task {
-                     	_ => {
-                        	panic!("unhandled task {}", task);
-                        	}
-                    }
-                } else */if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
                         _ => {
                             (); //panic!("unhandled interrupt {}", interrupt);
@@ -52,32 +46,21 @@ impl Chip for Lpc43xx {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe { cortexm4::nvic::has_pending() }
     }
 
+    fn sleep(&self) {
+        unsafe {
+            cortexm4::support::wfi();
+        }
+    }
+    
     fn mpu(&self) -> &cortexm4::mpu::MPU {
         &self.mpu
     }
 
     fn systick(&self) -> &cortexm4::systick::SysTick {
         &self.systick
-    }
-
-    fn sleep(&self) {
-    
-/*        if pm::deep_sleep_ready() {
-            unsafe {
-                cortexm4::scb::set_sleepdeep();
-            }
-        } else {*/
-            unsafe {
-                cortexm4::scb::unset_sleepdeep();
-            }
-        //}
-
-        unsafe {
-            cortexm4::support::wfi();
-        }
     }
 
     unsafe fn atomic<F, R>(&self, f: F) -> R
