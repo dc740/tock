@@ -67,7 +67,7 @@ base_apb1_clk: ReadWrite<u32, BASE_CLK::Register>,
 base_apb3_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_LCD_CLK control register
 base_lcd_clk: ReadWrite<u32, BASE_CLK::Register>,
-_reserved1: [u8; 4],
+_reserved1: [u8; 4], //TODO: ADCHS clock here?
 /// Output stage BASE_SDIO_CLK control register
 base_sdio_clk: ReadWrite<u32, BASE_CLK::Register>,
 /// Output stage BASE_SSP0_CLK control register
@@ -702,9 +702,28 @@ pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_fre
         /* Setup system base clocks and initial states. This won't enable and
            disable individual clocks, but sets up the base clock sources for
            each individual peripheral clock. */
-           //acá tenemos que cambiar el base_m4 por lo que corresponda
-        CGU_BASE.base_m4_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
-        //TODO: initialize other clocks to a safe value
+        //Is SAFE_CLK really readOnly? I've seen it being set in other implementations.
+        //CGU_BASE.base_safe_clk.modify(BASE_CLK::CLK_SEL::IRCDefault + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_apb1_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_apb3_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_usb0_clk.modify(BASE_CLK::CLK_SEL::PLL0USBDefault + BASE_CLK::PD::PowerDown + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_periph_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_spi_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_sdio_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_ssp0_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_ssp1_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_uart0_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_uart1_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_uart2_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_uart3_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        //CGU_BASE.base_out_clk.modify(BASE_CLK::PD::PowerDown);
+        //CGU_BASE.base_audio_clk.modify(BASE_CLK::PD::PowerDown);
+        //CGU_BASE.base_cgu_out0_clk.modify(BASE_CLK::PD::PowerDown);
+        //CGU_BASE.base_cgu_out1_clk.modify(BASE_CLK::PD::PowerDown);
+        CGU_BASE.base_phy_rx_clk.modify(BASE_CLK::CLK_SEL::ENET_TX_CLK + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_phy_tx_clk.modify(BASE_CLK::CLK_SEL::ENET_TX_CLK + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        CGU_BASE.base_usb0_clk.modify(BASE_CLK::CLK_SEL::IDIVD + BASE_CLK::PD::PowerDown + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        //TODO: ADHS??? it's defined as reserved1
     }
 }
 
