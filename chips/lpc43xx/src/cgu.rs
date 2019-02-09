@@ -30,7 +30,7 @@ pll0audio_np_div: ReadWrite<u32, PLL0AUDIO_NP_DIV::Register>,
 /// PLL0AUDIO fractional divider register
 pll0audio_frac: ReadWrite<u32>,
 /// PLL1 status register
-pll1_stat: ReadOnly<u32>,
+pll1_stat: ReadOnly<u32, PLL1_STAT::Register>,
 /// PLL1 control register
 pll1_ctrl: ReadWrite<u32, PLL1_CTRL::Register>,
 /// Integer divider A control register
@@ -327,6 +327,15 @@ PLL0AUDIO_NP_DIV [
     PDEC OFFSET(0) NUMBITS(7) [],
     /// Decoded N-divider coefficient value
     NDEC OFFSET(12) NUMBITS(10) []
+],
+PLL1_STAT [
+    /// PLL0 lock indicator
+    LOCK OFFSET(0) NUMBITS(1) [
+        /// PLL1 unlocked
+        Unlocked = 0,
+        /// PLL1 locked
+        Locked = 1
+    ]
 ],
 PLL1_CTRL [
     /// PLL1 power down
@@ -641,6 +650,8 @@ const CGU_BASE: StaticRef<CguRegisters> =
 
 /// Helper function to initialize all system clocks to a safe value
 pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_freq: u32, set_initial_clocks: bool){
+    let mut delay : u32 = 5500;
+    let mut direct : bool = false;
     //PartEq is not implemented for FieldValue. I wonder why
     if clkin.value == BASE_CLK::CLK_SEL::CrystalOscillator.value && clkin.mask == BASE_CLK::CLK_SEL::CrystalOscillator.mask {
         enable_crystal();
@@ -652,7 +663,58 @@ pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_fre
     CGU_BASE.pll1_ctrl.modify(PLL1_CTRL::PD::PLL1PoweredDown);
     
     let ppll = calculate_main_pll_value(clkin, core_freq);
-    //TODO: Continue here
+    
+    if core_freq > 110000000 {
+        if u32::from(PLL1_CTRL::DIRECT.val(u32::from(ppll))) == u32::from(PLL1_CTRL::DIRECT::Enabled)
+            || u32::from(PLL1_CTRL::PSEL.val(u32::from(ppll))) != u32::from(PLL1_CTRL::PSEL::_1) {
+              /* Calculate the PLL Parameters */
+              let lpll = calculate_main_pll_value(clkin, 110000000);
+              setup_main_pll(lpll);
+              /* Wait for the PLL to lock */
+              while !is_main_pll_locked() {support::nop()}
+              CGU_BASE.base_m4_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+              for _ in 0..delay {support::nop()}
+              delay = 5500;
+         } else {
+              direct = true;
+              CGU_BASE.pll1_ctrl.modify(PLL1_CTRL::DIRECT::Disabled); //lets enable it later
+         }
+    }
+
+    /* Setup and start the PLL */
+    setup_main_pll(ppll);
+
+    /* Wait for the PLL to lock */
+    while !is_main_pll_locked(){support::nop() }
+
+    /* Set core clock base as PLL1 */
+    CGU_BASE.base_m4_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+
+    for _ in 0..delay {support::nop()} /* Wait for approx 50 uSec */
+    if direct {
+         delay = 5500;
+         CGU_BASE.pll1_ctrl.modify(PLL1_CTRL::DIRECT::Enabled);
+         setup_main_pll(ppll); /* Set DIRECT to operate at full frequency */
+         for _ in 0..delay {support::nop()} /* Wait for approx 50 uSec */
+    }
+    
+    if set_initial_clocks {
+        /* Setup system base clocks and initial states. This won't enable and
+           disable individual clocks, but sets up the base clock sources for
+           each individual peripheral clock. */
+           //acá tenemos que cambiar el base_m4 por lo que corresponda
+        CGU_BASE.base_m4_clk.modify(BASE_CLK::CLK_SEL::PLL1 + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
+        //TODO: initialize other clocks to a safe value
+    }
+}
+
+fn setup_main_pll(config: FieldValue<u32, PLL1_CTRL::Register>){
+   /* power up main PLL */
+   CGU_BASE.pll1_ctrl.modify(config)
+}
+
+fn is_main_pll_locked() -> bool {
+   CGU_BASE.pll1_stat.is_set(PLL1_STAT::LOCK)
 }
 
 fn enable_crystal() {
@@ -927,7 +989,8 @@ fn abs_sub (a : u32, b : u32) -> u32 {
 /// This is also different than .modify, since the modify function for 
 /// FielValue types actually replaces the entire value with a new u32.
 /// 
-/// Note: IntLike and RegisterLongName were made public just for this
+/// Note: RegisterLongName was made public just for this. I was using IntLike to also
+/// use a generic for the type, but the new method started giving me issues so I skipped the problem.
 fn field_value_set<R>(old: FieldValue<u32, R>, new : FieldValue<u32, R>) -> FieldValue<u32, R> where R: RegisterLongName {
     let nmask = new.mask;
     let omask = old.mask;
