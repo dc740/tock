@@ -652,13 +652,16 @@ const CGU_BASE: StaticRef<CguRegisters> =
 pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_freq: u32, set_initial_clocks: bool){
     let mut delay : u32 = 5500;
     let mut direct : bool = false;
+
     //PartEq is not implemented for FieldValue. I wonder why
-    if clkin.value == BASE_CLK::CLK_SEL::CrystalOscillator.value && clkin.mask == BASE_CLK::CLK_SEL::CrystalOscillator.mask {
+    if u32::from(BASE_CLK::CLK_SEL.val(u32::from(clkin))) == u32::from(BASE_CLK::CLK_SEL::CrystalOscillator) {
+        
         enable_crystal();
     }
+     
     // Enable M4 clock
     CGU_BASE.base_m4_clk.modify(clkin + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
-    
+   
     // Shutdown main PLL
     CGU_BASE.pll1_ctrl.modify(PLL1_CTRL::PD::PLL1PoweredDown);
     
@@ -753,7 +756,7 @@ fn enable_crystal() {
     CGU_BASE.xtal_osc_ctrl.modify_no_read(xtal_local_cpy, xtal_fields);
         
     //delay a little bit (at least 250uS)
-     for _ in 0..1000 {
+     for _ in 0..27500 {
             support::nop();
      }
 }

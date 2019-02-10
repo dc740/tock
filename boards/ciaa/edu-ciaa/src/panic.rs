@@ -15,5 +15,5 @@ pub unsafe extern "C" fn panic_fmt(_pi: &PanicInfo) -> ! {
 	let ledr = &mut led::LedHigh::new(&mut lpc43xx::gpio::GPIO5[0]);
 	let ledg = &mut led::LedHigh::new(&mut lpc43xx::gpio::GPIO5[1]);
 	let ledb = &mut led::LedHigh::new(&mut lpc43xx::gpio::GPIO5[2]);
-    debug::panic_blink_forever(&mut [led1, led2, led3, ledr, ledg, ledb])
+    debug::panic_blink_forever(&mut [led3, led1])
 }

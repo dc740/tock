@@ -27,7 +27,7 @@ flash: target/$(TARGET)/release/$(PLATFORM).bin
 	$(Q)$(OOCD) -f $(OOCD_SCRIPT) \
 		-c "init" \
 		-c "halt 0" \
-		-c "flash write_image erase unlock $< 0x1A000000 bin" \
+		-c "flash write_image erase $< 0x1A000000 bin" \
 		-c "reset run" \
 		-c "shutdown" 2>&1
 	
