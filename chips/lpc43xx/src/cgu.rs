@@ -1,6 +1,6 @@
 use cortexm4::support;
 use kernel::common::StaticRef;
-use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields, FieldValue, IntLike, RegisterLongName};
+use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields, Field, FieldValue, RegisterLongName};
 use creg::is_creg6_rmii_mode;
 
     /// Clock Generation Unit (CGU)
@@ -649,16 +649,17 @@ const CGU_BASE: StaticRef<CguRegisters> =
     unsafe { StaticRef::new(0x40050000 as *const CguRegisters) };
 
 /// Helper function to initialize all system clocks to a safe value
+#[no_mangle]
+#[inline(never)]
 pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_freq: u32, set_initial_clocks: bool){
     let mut delay : u32 = 5500;
     let mut direct : bool = false;
 
     //PartEq is not implemented for FieldValue. I wonder why
-    if u32::from(BASE_CLK::CLK_SEL.val(u32::from(clkin))) == u32::from(BASE_CLK::CLK_SEL::CrystalOscillator) {
-        
+    if is_field_value_set::<BASE_CLK::Register>(clkin, BASE_CLK::CLK_SEL::CrystalOscillator) {
         enable_crystal();
     }
-     
+
     // Enable M4 clock
     CGU_BASE.base_m4_clk.modify(clkin + BASE_CLK::PD::EnabledOutputStageEnabledDefault + BASE_CLK::AUTOBLOCK::EnabledAutoblockingEnabled);
    
@@ -668,8 +669,8 @@ pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_fre
     let ppll = calculate_main_pll_value(clkin, core_freq);
     
     if core_freq > 110000000 {
-        if u32::from(PLL1_CTRL::DIRECT.val(u32::from(ppll))) == u32::from(PLL1_CTRL::DIRECT::Enabled)
-            || u32::from(PLL1_CTRL::PSEL.val(u32::from(ppll))) != u32::from(PLL1_CTRL::PSEL::_1) {
+        if is_field_value_set::<PLL1_CTRL::Register>(ppll, PLL1_CTRL::DIRECT::Enabled)
+            || !is_field_value_set::<PLL1_CTRL::Register>(ppll, PLL1_CTRL::PSEL::_1) {
               /* Calculate the PLL Parameters */
               let lpll = calculate_main_pll_value(clkin, 110000000);
               setup_main_pll(lpll);
@@ -730,15 +731,21 @@ pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_fre
     }
 }
 
+#[no_mangle]
+#[inline(never)]
 fn setup_main_pll(config: FieldValue<u32, PLL1_CTRL::Register>){
    /* power up main PLL */
    CGU_BASE.pll1_ctrl.modify(config)
 }
 
+#[no_mangle]
+#[inline(never)]
 fn is_main_pll_locked() -> bool {
    CGU_BASE.pll1_stat.is_set(PLL1_STAT::LOCK)
 }
 
+#[no_mangle]
+#[inline(never)]
 fn enable_crystal() {
     let xtal_local_cpy = CGU_BASE.xtal_osc_ctrl.extract();
     let mut xtal_fields = XTAL_OSC_CTRL::ENABLE::Enable + XTAL_OSC_CTRL::BYPASS::CrystalOperationWithCrystalConnectedDefault;
@@ -761,6 +768,8 @@ fn enable_crystal() {
      }
 }
 
+#[no_mangle]
+#[inline(never)]
 fn calculate_main_pll_value(srcin: FieldValue<u32, BASE_CLK::Register>, freq: u32) -> FieldValue<u32, PLL1_CTRL::Register>{
     let input_freq = get_clock_input_hz(srcin);
     if input_freq > MAX_CLOCK_FREQ || input_freq < (PLL_MIN_CCO_FREQ / 16) || input_freq == 0 {
@@ -774,41 +783,40 @@ fn calculate_main_pll_value(srcin: FieldValue<u32, BASE_CLK::Register>, freq: u3
     
     if freq < PLL_MIN_CCO_FREQ || (freq / input_freq) * input_freq != freq {
         config = pll_get_frac(freq, input_freq); //recalculate the config
-        if u32::from(PLL1_CTRL::NSEL.val(u32::from(config))) == u32::from(PLL1_CTRL::NSEL::_1) {
+        if is_field_value_set::<PLL1_CTRL::Register>(config, PLL1_CTRL::NSEL::_1) {
             panic!("Unable to calculate main pll value! nsel = 0");
         }
-        nsel =  PLL1_CTRL::NSEL.val(u32::from(PLL1_CTRL::NSEL.val(u32::from(config))) - 1); //nsel = nsel - 1
+        nsel =  PLL1_CTRL::NSEL.val(get_raw_value_from_field_value(PLL1_CTRL::NSEL, config) - 1); //nsel = nsel - 1
     }
     
-    if u32::from(PLL1_CTRL::MSEL.val(u32::from(config))) == 0 {
+    if get_raw_value_from_field_value(PLL1_CTRL::MSEL, config) == 0 {
         panic!("Unable to calculate main pll value! msel = 0");
     }
 
-    psel = PLL1_CTRL::PSEL.val(u32::from(config));
-    if u32::from(psel) != 0 {
-        psel =  PLL1_CTRL::PSEL.val(u32::from(PLL1_CTRL::PSEL.val(u32::from(config))) - 1); //psel = psel - 1
+    if get_raw_value_from_field_value(PLL1_CTRL::PSEL, config) != 0 {
+        psel =  PLL1_CTRL::PSEL.val(get_raw_value_from_field_value(PLL1_CTRL::PSEL,config) - 1); //psel = psel - 1
     }
 
-    msel =  PLL1_CTRL::MSEL.val(u32::from(PLL1_CTRL::MSEL.val(u32::from(config))) - 1); //msel = msel - 1
+    msel =  PLL1_CTRL::MSEL.val(get_raw_value_from_field_value(PLL1_CTRL::MSEL,config) - 1); //msel = msel - 1
     config = PLL1_CTRL::DIRECT::Enabled + psel + nsel + msel;
     config
 }
 
+#[no_mangle]
+#[inline(never)]
 fn get_clock_input_hz(clkin: FieldValue<u32, BASE_CLK::Register>) -> u32 {
-    let clk = u32::from(clkin);
     let mut ret_val: u32 = 0;
     // We can't use match here because the registers don't have Eq and PartialEq implemented
-    
-    if clk == u32::from(BASE_CLK::CLK_SEL::_32KHzOscillator){
+    if is_field_value_set(clkin,BASE_CLK::CLK_SEL::_32KHzOscillator){
         ret_val = CRYSTAL_32K_FREQ_IN;
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::IRCDefault){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::IRCDefault){
         ret_val = CGU_IRC_FREQ;
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::ENET_RX_CLK){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::ENET_RX_CLK){
         if !is_creg6_rmii_mode() {
             /* MII mode requires 25MHz clock */
             ret_val = 25000000;
         }
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::ENET_TX_CLK){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::ENET_TX_CLK){
         if is_creg6_rmii_mode() {
             /* RMII uses 50 MHz */
             ret_val = 50000000;
@@ -816,31 +824,33 @@ fn get_clock_input_hz(clkin: FieldValue<u32, BASE_CLK::Register>) -> u32 {
             /* MII mode requires 25MHz clock */
             ret_val = 25000000;
         }
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::GP_CLKIN){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::GP_CLKIN){
         ret_val = EXTRATEIN;
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::CrystalOscillator){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::CrystalOscillator){
         ret_val = OSCRATEIN;
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::PLL0USBDefault){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::PLL0USBDefault){
         // TODO: implement this. It should be stored somewhere after we setup the USB PLL, but who will be the owner?
         //maybe create a different function for PLL0
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::PLL0AUDIO){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::PLL0AUDIO){
         // TODO: implement this. It should be stored somewhere after we setup the USB PLL, but who will be the owner?
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::PLL1){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::PLL1){
         ret_val = get_main_pll_hz();
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::IDIVA){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::IDIVA){
         ret_val = get_div_rate(CHIP_CGU_IDIV::ClkIdivA);
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::IDIVB){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::IDIVB){
         ret_val = get_div_rate(CHIP_CGU_IDIV::ClkIdivB);
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::IDIVC){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::IDIVC){
         ret_val = get_div_rate(CHIP_CGU_IDIV::ClkIdivC);
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::IDIVD){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::IDIVD){
         ret_val = get_div_rate(CHIP_CGU_IDIV::ClkIdivD);
-    } else if clk == u32::from(BASE_CLK::CLK_SEL::IDIVE){
+    } else if is_field_value_set(clkin, BASE_CLK::CLK_SEL::IDIVE){
         ret_val = get_div_rate(CHIP_CGU_IDIV::ClkIdivE);
     }
     ret_val
 }
 
+#[no_mangle]
+#[inline(never)]
 fn get_main_pll_hz() -> u32 {
     let freq : u32 = get_clock_input_hz(BASE_CLK::CLK_SEL.val(CGU_BASE.pll1_ctrl.read(PLL1_CTRL::CLK_SEL)));
     let msel : u32;
@@ -870,6 +880,8 @@ fn get_main_pll_hz() -> u32 {
     ret_val
 }
 
+#[no_mangle]
+#[inline(never)]
 fn get_div_rate(divider: CHIP_CGU_IDIV) -> u32 {
     match divider {
             CHIP_CGU_IDIV::ClkIdivA => {
@@ -906,6 +918,8 @@ fn get_div_rate(divider: CHIP_CGU_IDIV) -> u32 {
 
 }
 
+#[no_mangle]
+#[inline(never)]
 fn pll_get_frac(freq: u32, current_input_freq : u32) -> FieldValue<u32, PLL1_CTRL::Register> {
     let diff_0 : u32;
     let diff_1 : u32;
@@ -952,6 +966,8 @@ fn pll_get_frac(freq: u32, current_input_freq : u32) -> FieldValue<u32, PLL1_CTR
    }
 }
 
+#[no_mangle]
+#[inline(never)]
 fn pll_calc_divs(freq: u32, config: FieldValue<u32, PLL1_CTRL::Register>, current_input_freq : u32) -> (u32, FieldValue<u32, PLL1_CTRL::Register>)
 {
 
@@ -959,7 +975,7 @@ fn pll_calc_divs(freq: u32, config: FieldValue<u32, PLL1_CTRL::Register>, curren
     let mut calculated_freq : u32 = freq;
     let mut new_config : FieldValue<u32, PLL1_CTRL::Register> = config;
     /* When direct mode is set FBSEL should be a don't care */
-    if u32::from(PLL1_CTRL::DIRECT.val(u32::from(config))) == u32::from(PLL1_CTRL::DIRECT::Enabled) {
+    if is_field_value_set(config, PLL1_CTRL::DIRECT::Enabled) {
         new_config = field_value_set::<PLL1_CTRL::Register>(new_config, PLL1_CTRL::FBSEL::CCOOutCCOOutputIsUsedAsFeedbackDividerInputClock);
     }
     for n in 1..5 {
@@ -967,14 +983,14 @@ fn pll_calc_divs(freq: u32, config: FieldValue<u32, PLL1_CTRL::Register>, curren
             for m in 1..257 {
                 let fcco : u32;
                 let fout : u32;
-                if u32::from(PLL1_CTRL::FBSEL.val(u32::from(new_config))) == u32::from(PLL1_CTRL::FBSEL::CCOOutCCOOutputIsUsedAsFeedbackDividerInputClock) {
+                if is_field_value_set(new_config, PLL1_CTRL::FBSEL::CCOOutCCOOutputIsUsedAsFeedbackDividerInputClock) {
                     fcco = ((m << (p + 1)) * current_input_freq) / n;
                 } else {
                     fcco = (m * current_input_freq) / n;
                 }
                 if fcco < PLL_MIN_CCO_FREQ {continue;}
                 if fcco > PLL_MAX_CCO_FREQ {break;}
-                if u32::from(PLL1_CTRL::DIRECT.val(u32::from(new_config))) == u32::from(PLL1_CTRL::DIRECT::Enabled) {
+                if is_field_value_set(new_config, PLL1_CTRL::DIRECT::Enabled) {
                     fout = fcco;
                 } else {
                     fout = fcco >> (p + 1);
@@ -997,6 +1013,8 @@ fn pll_calc_divs(freq: u32, config: FieldValue<u32, PLL1_CTRL::Register>, curren
 }
 
 /// We don't have std::num::abs so we implement this substraction manually
+#[no_mangle]
+#[inline(never)]
 fn abs_sub (a : u32, b : u32) -> u32 {
     if a > b {
         return a - b;
@@ -1009,7 +1027,7 @@ fn abs_sub (a : u32, b : u32) -> u32 {
 /// Replace bits in existing FieldValue by the bits and values from the second FieldValue.
 /// This is different than adding, since adding only performs an OR operation.
 /// This is also different than .modify, since the modify function for 
-/// FielValue types actually replaces the entire value with a new u32.
+/// FielValue types actually replaces the entire value with a new u32 but you want to edit a few bits.
 /// 
 /// Note: RegisterLongName was made public just for this. I was using IntLike to also
 /// use a generic for the type, but the new method started giving me issues so I skipped the problem.
@@ -1017,4 +1035,17 @@ fn field_value_set<R>(old: FieldValue<u32, R>, new : FieldValue<u32, R>) -> Fiel
     let nmask = new.mask;
     let omask = old.mask;
     FieldValue::<u32, R>::new(omask | nmask, 0, (u32::from(old) & !nmask) | u32::from(new))
+}
+
+/// Take two FieldValues. Check that the second value is set on the first one
+/// This is useful for checking that some FieldValue bits are equal to another defined one
+/// ie: is_field_value_set::<BASE_CLK::Register>(clkin, BASE_CLK::CLK_SEL::CrystalOscillator)) {
+fn is_field_value_set<R>(current_field_value: FieldValue<u32, R>, expected_bits : FieldValue<u32, R>) -> bool where R: RegisterLongName {
+    current_field_value.value & expected_bits.mask == expected_bits.value
+}
+
+/// Extract a single value (a single field) from a composed field value
+fn get_raw_value_from_field_value<R>(field: Field<u32, R>, composed_value : FieldValue<u32, R>) -> u32 where R: RegisterLongName {
+    // For the Field, the mask is unshifted, so...
+    (composed_value.value >> field.shift) & field.mask
 }

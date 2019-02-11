@@ -49,17 +49,18 @@ There are two good ways of debugging the kernel. You can use the command line gd
 
 To debug from the command line:
 1. Start an openocd debug server (point to the right .cfg file):
-`/usr/bin/openocd -c gdb_port 3333 -c telnet_port 4444 -c tcl_port 6666 -f <full_path>/ftdi_lpc4337.cfg`
+`openocd -c "gdb_port 3333" -c "telnet_port 4444" -c "tcl_port 6666" -f <full_path>/ftdi_lpc4337.cfg`
 2. Start GDB
 `arm-none-eabi-gdb --tui --nx target/thumbv7em-none-eabi/release/edu-ciaa`
 3. Run these commands in gdb to start debugging:
 
 ```
 target remote localhost:3333
+layout split
 set mem inaccessible-by-default off
 monitor arm semihosting enable
 monitor reset halt
-layout split
+
 ```
 
 ### Debugging the kernel from Eclipse
