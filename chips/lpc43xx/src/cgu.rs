@@ -735,7 +735,8 @@ pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_fre
 #[inline(never)]
 fn setup_main_pll(config: FieldValue<u32, PLL1_CTRL::Register>){
    /* power up main PLL */
-   CGU_BASE.pll1_ctrl.modify(config)
+   //CGU_BASE.pll1_ctrl.modify(config)
+   CGU_BASE.pll1_ctrl.set(u32::from(config)) //overwrite the entire register. Don't modify it
 }
 
 #[no_mangle]
@@ -782,7 +783,7 @@ fn calculate_main_pll_value(srcin: FieldValue<u32, BASE_CLK::Register>, freq: u3
     let mut config = PLL1_CTRL::DIRECT::Enabled + psel + nsel + msel;
     
     if freq < PLL_MIN_CCO_FREQ || (freq / input_freq) * input_freq != freq {
-        config = pll_get_frac(freq, input_freq); //recalculate the config
+        config = pll_get_frac(freq, input_freq); //recalculate the config. step over previous config, not updating
         if is_field_value_set::<PLL1_CTRL::Register>(config, PLL1_CTRL::NSEL::_1) {
             panic!("Unable to calculate main pll value! nsel = 0");
         }
@@ -1000,7 +1001,7 @@ fn pll_calc_divs(freq: u32, config: FieldValue<u32, PLL1_CTRL::Register>, curren
                 if diff < prev {
                     let nsel = PLL1_CTRL::NSEL.val(n);
                     let psel = PLL1_CTRL::PSEL.val(p + 1);
-                    let msel = PLL1_CTRL::FBSEL.val(m);
+                    let msel = PLL1_CTRL::MSEL.val(m);
                     calculated_freq = fout;
                     new_config = field_value_set::<PLL1_CTRL::Register>(new_config, nsel + psel + msel);
                     //ppll->fcco = fcco; not used
