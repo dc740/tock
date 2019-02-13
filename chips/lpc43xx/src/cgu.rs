@@ -666,10 +666,10 @@ pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_fre
     // Shutdown main PLL
     CGU_BASE.pll1_ctrl.modify(PLL1_CTRL::PD::PLL1PoweredDown);
     
-    let ppll = calculate_main_pll_value(clkin, core_freq);
+    let mut ppll = calculate_main_pll_value(clkin, core_freq);
     
     if core_freq > 110000000 {
-        if is_field_value_set::<PLL1_CTRL::Register>(ppll, PLL1_CTRL::DIRECT::Enabled)
+        if is_field_value_set::<PLL1_CTRL::Register>(ppll, PLL1_CTRL::DIRECT::Disabled)
             || !is_field_value_set::<PLL1_CTRL::Register>(ppll, PLL1_CTRL::PSEL::_1) {
               /* Calculate the PLL Parameters */
               let lpll = calculate_main_pll_value(clkin, 110000000);
@@ -681,7 +681,7 @@ pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_fre
               delay = 5500;
          } else {
               direct = true;
-              CGU_BASE.pll1_ctrl.modify(PLL1_CTRL::DIRECT::Disabled); //lets enable it later
+              ppll = field_value_set(ppll, PLL1_CTRL::DIRECT::Disabled); //lets enable it later
          }
     }
 
@@ -697,7 +697,7 @@ pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_fre
     for _ in 0..delay {support::nop()} /* Wait for approx 50 uSec */
     if direct {
          delay = 5500;
-         CGU_BASE.pll1_ctrl.modify(PLL1_CTRL::DIRECT::Enabled);
+         ppll = field_value_set(ppll, PLL1_CTRL::DIRECT::Enabled);
          setup_main_pll(ppll); /* Set DIRECT to operate at full frequency */
          for _ in 0..delay {support::nop()} /* Wait for approx 50 uSec */
     }
@@ -777,17 +777,20 @@ fn calculate_main_pll_value(srcin: FieldValue<u32, BASE_CLK::Register>, freq: u3
        panic!("Unable to calculate main pll value!!!");
     }
     
-    let mut msel = PLL1_CTRL::MSEL.val(freq / input_freq);
-    let mut nsel = PLL1_CTRL::NSEL::_1;
-    let mut psel = PLL1_CTRL::PSEL::_1;
-    let mut config = PLL1_CTRL::DIRECT::Enabled + psel + nsel + msel;
+    let pll1_clkin = PLL1_CTRL::CLK_SEL.val(get_raw_value_from_field_value(BASE_CLK::CLK_SEL, srcin)); //convert from one register type to the other
+    let mut msel : u32 = freq / input_freq;
+    let mut nsel : u32 = 0;
+    let mut psel : u32 = 0;
+    let mut config = pll1_clkin + PLL1_CTRL::DIRECT::Enabled + PLL1_CTRL::PSEL.val(psel) + PLL1_CTRL::NSEL.val(nsel) + PLL1_CTRL::MSEL.val(msel);
     
     if freq < PLL_MIN_CCO_FREQ || (freq / input_freq) * input_freq != freq {
         config = pll_get_frac(freq, input_freq); //recalculate the config. step over previous config, not updating
         if is_field_value_set::<PLL1_CTRL::Register>(config, PLL1_CTRL::NSEL::_1) {
             panic!("Unable to calculate main pll value! nsel = 0");
         }
-        nsel =  PLL1_CTRL::NSEL.val(get_raw_value_from_field_value(PLL1_CTRL::NSEL, config) - 1); //nsel = nsel - 1
+        nsel = get_raw_value_from_field_value(PLL1_CTRL::NSEL, config) - 1;
+        msel = get_raw_value_from_field_value(PLL1_CTRL::MSEL, config);
+        psel = get_raw_value_from_field_value(PLL1_CTRL::PSEL, config);
     }
     
     if get_raw_value_from_field_value(PLL1_CTRL::MSEL, config) == 0 {
@@ -795,11 +798,11 @@ fn calculate_main_pll_value(srcin: FieldValue<u32, BASE_CLK::Register>, freq: u3
     }
 
     if get_raw_value_from_field_value(PLL1_CTRL::PSEL, config) != 0 {
-        psel =  PLL1_CTRL::PSEL.val(get_raw_value_from_field_value(PLL1_CTRL::PSEL,config) - 1); //psel = psel - 1
+        psel = psel - 1;
     }
 
-    msel =  PLL1_CTRL::MSEL.val(get_raw_value_from_field_value(PLL1_CTRL::MSEL,config) - 1); //msel = msel - 1
-    config = PLL1_CTRL::DIRECT::Enabled + psel + nsel + msel;
+    msel = msel - 1;
+    config = pll1_clkin + PLL1_CTRL::DIRECT::Enabled + PLL1_CTRL::PSEL.val(psel) + PLL1_CTRL::NSEL.val(nsel) + PLL1_CTRL::MSEL.val(msel);
     config
 }
 

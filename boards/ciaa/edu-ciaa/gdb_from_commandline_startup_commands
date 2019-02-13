@@ -1,0 +1,5 @@
+target remote localhost:3333
+layout split
+set mem inaccessible-by-default off
+monitor arm semihosting enable
+monitor reset halt
