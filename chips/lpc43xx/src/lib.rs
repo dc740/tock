@@ -18,8 +18,8 @@ pub mod chip;
 pub mod adc;
 pub mod atimer;
 pub mod c_can0;
-pub mod c_can1;
-pub mod ccu1;
+pub mod c_can1;*/
+pub mod ccu1;/*
 pub mod ccu2;*/
 pub mod cgu;
 pub mod creg;
@@ -51,8 +51,8 @@ pub mod sgpio;
 pub mod spifi;
 pub mod spi;
 pub mod ssp;
-pub mod timer;
-pub mod uart1;
+pub mod timer;*/
+pub mod uart1;/*
 pub mod usart;
 pub mod usb0;
 pub mod usb1;

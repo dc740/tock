@@ -808,7 +808,7 @@ fn calculate_main_pll_value(srcin: FieldValue<u32, BASE_CLK::Register>, freq: u3
 
 #[no_mangle]
 #[inline(never)]
-fn get_clock_input_hz(clkin: FieldValue<u32, BASE_CLK::Register>) -> u32 {
+pub fn get_clock_input_hz(clkin: FieldValue<u32, BASE_CLK::Register>) -> u32 {
     let mut ret_val: u32 = 0;
     // We can't use match here because the registers don't have Eq and PartialEq implemented
     if is_field_value_set(clkin,BASE_CLK::CLK_SEL::_32KHzOscillator){
@@ -1014,6 +1014,13 @@ fn pll_calc_divs(freq: u32, config: FieldValue<u32, PLL1_CTRL::Register>, curren
         }
     }
     (calculated_freq, new_config)
+}
+
+
+#[no_mangle]
+#[inline(never)]
+pub fn get_uart2_base_clk() -> FieldValue<u32,BASE_CLK::CLK_SEL> {
+    CGU_BASE.base_uart2_clk.read(BASE_CLK::CLK_SEL)
 }
 
 /// We don't have std::num::abs so we implement this substraction manually

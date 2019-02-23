@@ -49,6 +49,7 @@ clk_sdio_cfg: ReadWrite<u32, CLK_SDIO_CFG::Register>,
 /// CLK_SDIO clock status register
 clk_sdio_stat: ReadOnly<u32, CLK_SDIO_STAT::Register>,
 }
+//TODO: remove duplicated bitfields. Its all the same over and over again
 register_bitfields![u32,
 BASE_STAT [
     /// Base clock indicator for BASE_UART3_CLK 0 = All branch clocks switched off. 1 =

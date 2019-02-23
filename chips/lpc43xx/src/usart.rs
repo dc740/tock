@@ -1,15 +1,23 @@
 
 use kernel::common::StaticRef;
 use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
-    /// USART0_2_3
+
+use ccu1;
+
+/// USART0_2_3
 #[repr(C)]
 struct UsartRegisters {
 /// Receiver Buffer Register. Contains the next received character to be read (DLAB
+/// Also:
+///  * Divisor Latch LSB. Least significant byte of the baud rate divisor value. The full divisor is used to generate a baud rate from the fractional rate divider (DLAB = 1). 
+///  * Transmit Holding Register. The next character to be transmitted is written here (DLAB = 0). 
 rbr: ReadOnly<u32>,
 /// Divisor Latch MSB. Most significant byte of the baud rate divisor value. The ful
-dlm: ReadWrite<u32>,
+/// Also Interrupt Enable Register. Contains individual interrupt enable bits for the 7 potential UART interrupts (DLAB = 0).
+dlm: ReadWrite<u32>, 
 /// Interrupt ID Register. Identifies which interrupt(s) are pending.
-iir: ReadOnly<u32, IIR::Register>,
+/// Also FIFO Control Register. Controls UART FIFO usage and modes.
+iir: ReadOnly<u32, IIR::Register>, 
 /// Line Control Register. Contains controls for frame formatting and break generati
 lcr: ReadWrite<u32, LCR::Register>,
 _reserved0: [u8; 4],
@@ -464,3 +472,94 @@ const USART2_BASE: StaticRef<UsartRegisters> =
 
 const USART3_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x400C2000 as *const UsartRegisters) };
+    
+/// It assumes you already called ccu1.uart2_init() 
+pub fn uart2_init() {
+    /* Enable FIFOs by default, reset them */
+    USART2_BASE.iir.write(FCR::FIFOEN::ENABLED + FCR::RXFIFORES::CLEAR + FCR::TXFIFORES::CLEAR);
+    /* Disable Tx */
+    USART2_BASE.ter.set(0);
+    
+    /* Disable interrupts */
+    USART2_BASE.dlm.set(0);
+    /* Set LCR to default state */
+    USART2_BASE.lcr.set(0);
+    /* Set ACR to default state */
+    USART2_BASE.acr.write(ACR::StopAutoBaudStopAutoBaudIsNotRunning);
+    /* Set RS485 control to default state */
+    USART2_BASE.rs485ctrl.write(RS485CTRL::NMMEN::DisabledRS485EIA485NormalMultidropModeNMMIsDisabled)
+    /* Set RS485 delay timer to default state */
+    USART2_BASE.rs485dly.set(0);
+    /* Set RS485 addr match to default state */
+    USART2_BASE.rs485adrmatch.set(0);
+    /* No need to clear MCR. Only in UART1*/
+    
+    /* Default 8N1, with DLAB disabled */
+    USART2_BASE.lcr.write(LCR::WLS::_8BitCharacterLength + LCR::SBS::_1StopBit + LCR::PE::DisableParityGenerationAndChecking);
+
+    /* Disable fractional divider */
+    USART2_BASE.fdr.set(0x10)
+}
+
+/* Determines and sets best dividers to get a target baud rate */
+uint32_t SetBaudFDR(LPC_USART_T *pUART, uint32_t baud)
+{
+   let (mut sdiv, mut sm, mut sd) : (u32:u32:u32) = (0, 1, 0);
+   let (mut pclk, mut m, mut d) : (u32:u32:u32);
+   let mut u32 odiff = -1; /* old best diff */
+
+   /* Get base clock for the corresponding UART */
+   pclk = ccu1::get_uart2_rate();
+
+   /* Loop through all possible fractional divider values */
+   for (m = 1; odiff && m < 16; m++) {
+       for (d = 0; d < m; d++) {
+           let (mut diff, mut div) : (u32, u32);
+           let u64 dval = ((u64::from(pclk) << 28) * m) / (baud * (m + d));
+
+           /* Lower 32-bit of dval has diff */
+           diff = u32::from(dval);
+           /* Upper 32-bit of dval has div */
+           div = u32::from(dval >> 32);
+
+           /* Closer to next div */
+           if ((int)diff < 0) {
+               diff = -diff;
+               div ++;
+           }
+
+           /* Check if new value is worse than old or out of range */
+           if (odiff < diff || !div || (div >> 16) || (div < 3 && d)) {
+               continue;
+           }
+
+           /* Store the new better values */
+           sdiv = div;
+           sd = d;
+           sm = m;
+           odiff = diff;
+
+           /* On perfect match, break loop */
+           if(!diff) {
+               break;
+           }
+       }
+   }
+
+   /* Return 0 if a vaild divisor is not possible */
+   if (!sdiv) {
+       return 0;
+   }
+
+   /* Update UART registers */
+   Chip_UART_EnableDivisorAccess(pUART);
+   Chip_UART_SetDivisorLatches(pUART, UART_LOAD_DLL(sdiv), UART_LOAD_DLM(sdiv));
+   Chip_UART_DisableDivisorAccess(pUART);
+
+   /* Set best fractional divider */
+   pUART->FDR = (UART_FDR_MULVAL(sm) | UART_FDR_DIVADDVAL(sd));
+
+   /* Return actual baud rate */
+   return (pclk >> 4) * sm / (sdiv * (sm + sd));
+}
+
