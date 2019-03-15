@@ -95,8 +95,50 @@ pub unsafe fn reset_handler() {
         };
     let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
     
+    lpc43xx::scu::init_uart2_pinfunc();
+    lpc43xx::ccu1::uart2_init();
+    lpc43xx::usart::uart2_init();
+    lpc43xx::usart::uart2_set_baud_fdr(115200);
+    lpc43xx::usart::uart2_init_lcr();
+    lpc43xx::usart::uart2_tx_enable();
     /* TODO: implement UART so we get debugging messages there
     DO NOT USE debug! until we do this!
+        // Create a shared UART channel for the console and for kernel debug.
+    let uart_mux = static_init!(
+        MuxUart<'static>,
+        MuxUart::new(
+            &sam4l::usart::USART0,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
+    );
+    hil::uart::UART::set_client(&sam4l::usart::USART0, uart_mux);
+
+    // Create a UartDevice for the console.
+    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    console_uart.setup();
+    let console = static_init!(
+        capsules::console::Console<UartDevice>,
+        capsules::console::Console::new(
+            console_uart,
+            115200,
+            &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    hil::uart::UART::set_client(console_uart, console);
+    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
+    debugger_uart.setup();
+    let debugger = static_init!(
+        kernel::debug::DebugWriter,
+        kernel::debug::DebugWriter::new(
+            debugger_uart,
+            &mut kernel::debug::OUTPUT_BUF,
+            &mut kernel::debug::INTERNAL_BUF,
+        )
+    );
+    hil::uart::UART::set_client(debugger_uart, debugger);
     let debug_wrapper = static_init!(
         kernel::debug::DebugWriterWrapper,
         kernel::debug::DebugWriterWrapper::new(debugger)

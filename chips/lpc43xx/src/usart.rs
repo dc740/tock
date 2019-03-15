@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields};
 
 use ccu1;
 
@@ -11,13 +11,13 @@ struct UsartRegisters {
 /// Also:
 ///  * Divisor Latch LSB. Least significant byte of the baud rate divisor value. The full divisor is used to generate a baud rate from the fractional rate divider (DLAB = 1). 
 ///  * Transmit Holding Register. The next character to be transmitted is written here (DLAB = 0). 
-rbr: ReadOnly<u32>,
+rbr: ReadWrite<u32>,
 /// Divisor Latch MSB. Most significant byte of the baud rate divisor value. The ful
 /// Also Interrupt Enable Register. Contains individual interrupt enable bits for the 7 potential UART interrupts (DLAB = 0).
 dlm: ReadWrite<u32>, 
-/// Interrupt ID Register. Identifies which interrupt(s) are pending.
-/// Also FIFO Control Register. Controls UART FIFO usage and modes.
-iir: ReadOnly<u32, IIR::Register>, 
+/// Interrupt ID Register. Identifies which interrupt(s) are pending. (ReadOnly)
+/// Also FIFO Control Register. Controls UART FIFO usage and modes. So we changed from ReadOnly to ReadWrite
+fcr: ReadWrite<u32, FCR::Register>, 
 /// Line Control Register. Contains controls for frame formatting and break generati
 lcr: ReadWrite<u32, LCR::Register>,
 _reserved0: [u8; 4],
@@ -34,7 +34,7 @@ icr: ReadWrite<u32, ICR::Register>,
 fdr: ReadWrite<u32, FDR::Register>,
 /// Oversampling Register. Controls the degree of oversampling during each bit time.
 osr: ReadWrite<u32, OSR::Register>,
-_reserved2: [u8; 16],
+_reserved2: [u8; 16], //TER1, etc
 /// Half-duplex enable Register
 hden: ReadWrite<u32>,
 _reserved3: [u8; 4],
@@ -49,7 +49,7 @@ rs485dly: ReadWrite<u32>,
 /// Synchronous mode control register.
 syncctrl: ReadWrite<u32, SYNCCTRL::Register>,
 /// Transmit Enable Register. Turns off USART transmitter for use with software flow
-ter: ReadWrite<u32>,
+ter: ReadWrite<u32>, //AKA TER2
 }
 register_bitfields![u32,
 IER [
@@ -130,14 +130,14 @@ FCR [
         /// No effect. No impact on either of USART FIFOs.
         NoEffectNoImpactOnEitherOfUSARTFIFOs = 0,
         /// Clear. Writing a logic 1 to FCR[1] will clear all bytes in USART Rx FIFO, reset
-        CLEAR = 1
+        RX_CLEAR = 1
     ],
     /// TX FIFO Reset.
     TXFIFORES OFFSET(2) NUMBITS(1) [
         /// No effect. No impact on either of USART FIFOs.
         NoEffectNoImpactOnEitherOfUSARTFIFOs = 0,
         /// Clear. Writing a logic 1 to FCR[2] will clear all bytes in USART TX FIFO, reset
-        CLEAR = 1
+        TX_CLEAR = 1
     ],
     /// DMA Mode Select. When the FIFO enable bit (bit 0 of this register) is set, this
     DMAMODE OFFSET(3) NUMBITS(1) [],
@@ -462,21 +462,21 @@ SYNCCTRL [
     ]
 ]
 ];
-const USART0_BASE: StaticRef<UsartRegisters> =
-    unsafe { StaticRef::new(0x40081000 as *const UsartRegisters) };
+//const USART0_BASE: StaticRef<UsartRegisters> =
+//    unsafe { StaticRef::new(0x40081000 as *const UsartRegisters) };
 
 
 const USART2_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x400C1000 as *const UsartRegisters) };
 
 
-const USART3_BASE: StaticRef<UsartRegisters> =
-    unsafe { StaticRef::new(0x400C2000 as *const UsartRegisters) };
+//const USART3_BASE: StaticRef<UsartRegisters> =
+//    unsafe { StaticRef::new(0x400C2000 as *const UsartRegisters) };
     
 /// It assumes you already called ccu1.uart2_init() 
 pub fn uart2_init() {
     /* Enable FIFOs by default, reset them */
-    USART2_BASE.iir.write(FCR::FIFOEN::ENABLED + FCR::RXFIFORES::CLEAR + FCR::TXFIFORES::CLEAR);
+    USART2_BASE.fcr.write(FCR::FIFOEN::ENABLED + FCR::RXFIFORES::RX_CLEAR + FCR::TXFIFORES::TX_CLEAR);
     /* Disable Tx */
     USART2_BASE.ter.set(0);
     
@@ -485,9 +485,9 @@ pub fn uart2_init() {
     /* Set LCR to default state */
     USART2_BASE.lcr.set(0);
     /* Set ACR to default state */
-    USART2_BASE.acr.write(ACR::StopAutoBaudStopAutoBaudIsNotRunning);
+    USART2_BASE.acr.write(ACR::START::StopAutoBaudStopAutoBaudIsNotRunning);
     /* Set RS485 control to default state */
-    USART2_BASE.rs485ctrl.write(RS485CTRL::NMMEN::DisabledRS485EIA485NormalMultidropModeNMMIsDisabled)
+    USART2_BASE.rs485ctrl.write(RS485CTRL::NMMEN::DisabledRS485EIA485NormalMultidropModeNMMIsDisabled);
     /* Set RS485 delay timer to default state */
     USART2_BASE.rs485dly.set(0);
     /* Set RS485 addr match to default state */
@@ -501,65 +501,89 @@ pub fn uart2_init() {
     USART2_BASE.fdr.set(0x10)
 }
 
-/* Determines and sets best dividers to get a target baud rate */
-uint32_t SetBaudFDR(LPC_USART_T *pUART, uint32_t baud)
+/* I just wrote this to avoid making public some fields */
+pub fn uart2_init_lcr() 
 {
-   let (mut sdiv, mut sm, mut sd) : (u32:u32:u32) = (0, 1, 0);
-   let (mut pclk, mut m, mut d) : (u32:u32:u32);
-   let mut u32 odiff = -1; /* old best diff */
+    USART2_BASE.lcr.modify(LCR::WLS::_8BitCharacterLength + LCR::SBS::_1StopBit + LCR::PE::DisableParityGenerationAndChecking);
+}
 
-   /* Get base clock for the corresponding UART */
-   pclk = ccu1::get_uart2_rate();
+pub fn uart2_tx_enable() 
+{
+    USART2_BASE.ter.set(1);
+}
 
-   /* Loop through all possible fractional divider values */
-   for (m = 1; odiff && m < 16; m++) {
-       for (d = 0; d < m; d++) {
-           let (mut diff, mut div) : (u32, u32);
-           let u64 dval = ((u64::from(pclk) << 28) * m) / (baud * (m + d));
+/* Determines and sets best dividers to get a target baud rate */
+pub fn uart2_set_baud_fdr(baud : u32) -> u32
+{
+    let (mut sdiv, mut sm, mut sd) : (u32, u32, u32) = (0, 1, 0);
+    let pclk : u32;
+    let mut odiff : u32  = 0xFFFFFFFF; /* old best diff */
 
-           /* Lower 32-bit of dval has diff */
-           diff = u32::from(dval);
-           /* Upper 32-bit of dval has div */
-           div = u32::from(dval >> 32);
+    /* Get base clock for the corresponding UART */
+    pclk = ccu1::get_uart2_rate();
 
-           /* Closer to next div */
-           if ((int)diff < 0) {
-               diff = -diff;
-               div ++;
-           }
+    /* Loop through all possible fractional divider values */
+    for m in 1..16 {
+        if odiff == 0 {
+            break
+        }
+        for d in 0..m {
+            let (mut diff, mut div) : (u32, u32);
+            let dval : u64 = ((u64::from(pclk) << 28) * m) / (u64::from(baud) * (m + d));  
+ 
+            /* Lower 32-bit of dval has diff */
+            diff = dval as u32;
+            /* Upper 32-bit of dval has div */
+            div = (dval >> 32) as u32; 
 
-           /* Check if new value is worse than old or out of range */
-           if (odiff < diff || !div || (div >> 16) || (div < 3 && d)) {
-               continue;
-           }
+            /* Closer to next div */
+            if diff >= 0x80000000 {
+                diff = diff ^ 0x80000000;
+                div += 1;
+            } 
 
-           /* Store the new better values */
-           sdiv = div;
-           sd = d;
-           sm = m;
-           odiff = diff;
+            /* Check if new value is worse than old or out of range */
+            if odiff < diff || div == 0 || (div >> 16) != 0 || (div < 3 && d != 0) {
+                continue;
+            }
+
+            /* Store the new better values */
+            sdiv = div;
+            sd = d as u32;
+            sm = m as u32;
+            odiff = diff;
 
            /* On perfect match, break loop */
-           if(!diff) {
+           if diff == 0 {
                break;
            }
        }
    }
 
-   /* Return 0 if a vaild divisor is not possible */
-   if (!sdiv) {
-       return 0;
-   }
+    /* Return 0 if a vaild divisor is not possible */
+    if sdiv == 0 {
+        return 0;
+    }
 
-   /* Update UART registers */
-   Chip_UART_EnableDivisorAccess(pUART);
-   Chip_UART_SetDivisorLatches(pUART, UART_LOAD_DLL(sdiv), UART_LOAD_DLM(sdiv));
-   Chip_UART_DisableDivisorAccess(pUART);
+    /* Update UART registers */
+    USART2_BASE.lcr.modify(LCR::DLAB::EnabledEnableAccessToDivisorLatches);
+    USART2_BASE.rbr.set(sdiv & 0xff);
+    USART2_BASE.dlm.set((sdiv >> 8) & 0xff);
+    USART2_BASE.lcr.modify(LCR::DLAB::DisabledDisableAccessToDivisorLatches);
 
-   /* Set best fractional divider */
-   pUART->FDR = (UART_FDR_MULVAL(sm) | UART_FDR_DIVADDVAL(sd));
-
-   /* Return actual baud rate */
-   return (pclk >> 4) * sm / (sdiv * (sm + sd));
+    /* Set best fractional divider */
+    USART2_BASE.fdr.write(FDR::MULVAL.val(sm) + FDR::DIVADDVAL.val(sd));
+    
+    /* Return actual baud rate */
+    (pclk >> 4) * sm / (sdiv * (sm + sd))
 }
+pub fn uart2_write_char(baud : u32)
+{
+    }
+pub fn uart2_read_char(baud : u32)
+{
+    }
+pub fn uart2_write_str(baud : u32)
+{
+    }
 

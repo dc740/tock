@@ -1019,8 +1019,8 @@ fn pll_calc_divs(freq: u32, config: FieldValue<u32, PLL1_CTRL::Register>, curren
 
 #[no_mangle]
 #[inline(never)]
-pub fn get_uart2_base_clk() -> FieldValue<u32,BASE_CLK::CLK_SEL> {
-    CGU_BASE.base_uart2_clk.read(BASE_CLK::CLK_SEL)
+pub fn get_uart2_base_clk() -> FieldValue<u32,BASE_CLK::Register> {
+    BASE_CLK::CLK_SEL.val(CGU_BASE.base_uart2_clk.read(BASE_CLK::CLK_SEL))
 }
 
 /// We don't have std::num::abs so we implement this substraction manually

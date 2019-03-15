@@ -493,7 +493,7 @@ PINTSEL1 [
 pub const SCU_BASE: StaticRef<ScuRegisters> =
     unsafe { StaticRef::new(0x40086000 as *const ScuRegisters) };
 
-pub fn init_uart_pinfunc() {
+pub fn init_uart2_pinfunc() {
    // Port 6, pin 4 - UART0_TXD. The DisablePullDown was not necesary, but lets make it very explicit for future generations
    SCU_BASE.sfsp[6][4].write(SFSP::MODE::Function2 + SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown);
    // P2.1 : UART0_RXD

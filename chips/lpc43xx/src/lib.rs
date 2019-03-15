@@ -51,9 +51,9 @@ pub mod sgpio;
 pub mod spifi;
 pub mod spi;
 pub mod ssp;
-pub mod timer;*/
-pub mod uart1;/*
-pub mod usart;
+pub mod timer;
+pub mod uart1;*/
+pub mod usart;/*
 pub mod usb0;
 pub mod usb1;
 pub mod wwdt;*/

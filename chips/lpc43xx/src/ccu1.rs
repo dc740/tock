@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields};
 
 use cgu;
     /// Clock Control Unit (CCU)
@@ -281,12 +281,12 @@ pub fn uart2_init() {
 
 pub fn get_uart2_rate() -> u32 {
     let mut rate : u32;
-    let mut div : u32;
-    if CCU1_BASE.clk_m4_usart2_cfg.is_set(CLK_CFG::RUN::ClockIsEnabled) {
+    let div : u32;
+    if CCU1_BASE.clk_m4_usart2_cfg.matches_all(CLK_CFG::RUN::ClockIsEnabled) {
         //base clock is CLK_BASE_UART2: CGU_BASE.base_uart2_clk
-        rate = cgu::get_clock_input_hz(cgu::get_uart2_base_clk())
+        rate = cgu::get_clock_input_hz(cgu::get_uart2_base_clk());
         /* Get divider for this clock */
-        if (((CCU1_BASE.clk_m4_usart2_cfg.get() >> 5) & 0x7) == 0) {
+        if ((CCU1_BASE.clk_m4_usart2_cfg.get() >> 5) & 0x7) == 0 {
             div = 1;
         }
         else {
