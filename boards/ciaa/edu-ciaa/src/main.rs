@@ -12,11 +12,12 @@ extern crate lpc43xx;
 use kernel::capabilities;
 
 mod components;
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use components::button::ButtonComponent;
 use components::gpio::GpioComponent;
 use components::led::LedComponent;
-
 use kernel::component::Component;
+use kernel::hil;
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -95,24 +96,16 @@ pub unsafe fn reset_handler() {
         };
     let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
     
-    lpc43xx::scu::init_uart2_pinfunc();
-    lpc43xx::ccu1::uart2_init();
-    lpc43xx::usart::uart2_init();
-    lpc43xx::usart::uart2_set_baud_fdr(115200);
-    lpc43xx::usart::uart2_init_lcr();
-    lpc43xx::usart::uart2_tx_enable();
-    /* TODO: implement UART so we get debugging messages there
-    DO NOT USE debug! until we do this!
-        // Create a shared UART channel for the console and for kernel debug.
+    // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
         MuxUart<'static>,
         MuxUart::new(
-            &sam4l::usart::USART0,
+            &lpc43xx::usart::USART2,
             &mut capsules::virtual_uart::RX_BUF,
             115200
         )
     );
-    hil::uart::UART::set_client(&sam4l::usart::USART0, uart_mux);
+    hil::uart::UART::set_client(&lpc43xx::usart::USART2, uart_mux);
 
     // Create a UartDevice for the console.
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
@@ -128,6 +121,8 @@ pub unsafe fn reset_handler() {
         )
     );
     hil::uart::UART::set_client(console_uart, console);
+    
+    // Create a UartDevice for the kernel debugger.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
     debugger_uart.setup();
     let debugger = static_init!(
@@ -139,12 +134,13 @@ pub unsafe fn reset_handler() {
         )
     );
     hil::uart::UART::set_client(debugger_uart, debugger);
+    
     let debug_wrapper = static_init!(
         kernel::debug::DebugWriterWrapper,
         kernel::debug::DebugWriterWrapper::new(debugger)
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
-    debug!("Initialization complete. Entering main loop");*/
+    debug!("Initialization complete. Entering main loop");
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

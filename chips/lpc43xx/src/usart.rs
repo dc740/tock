@@ -1,8 +1,11 @@
 
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::common::cells::OptionalCell;
+use kernel::ReturnCode;
+use {ccu1, scu};
 
-use ccu1;
+
 
 /// USART0_2_3
 #[repr(C)]
@@ -473,117 +476,223 @@ const USART2_BASE: StaticRef<UsartRegisters> =
 //const USART3_BASE: StaticRef<UsartRegisters> =
 //    unsafe { StaticRef::new(0x400C2000 as *const UsartRegisters) };
     
-/// It assumes you already called ccu1.uart2_init() 
-pub fn uart2_init() {
-    /* Enable FIFOs by default, reset them */
-    USART2_BASE.fcr.write(FCR::FIFOEN::ENABLED + FCR::RXFIFORES::RX_CLEAR + FCR::TXFIFORES::TX_CLEAR);
-    /* Disable Tx */
-    USART2_BASE.ter.set(0);
-    
-    /* Disable interrupts */
-    USART2_BASE.dlm.set(0);
-    /* Set LCR to default state */
-    USART2_BASE.lcr.set(0);
-    /* Set ACR to default state */
-    USART2_BASE.acr.write(ACR::START::StopAutoBaudStopAutoBaudIsNotRunning);
-    /* Set RS485 control to default state */
-    USART2_BASE.rs485ctrl.write(RS485CTRL::NMMEN::DisabledRS485EIA485NormalMultidropModeNMMIsDisabled);
-    /* Set RS485 delay timer to default state */
-    USART2_BASE.rs485dly.set(0);
-    /* Set RS485 addr match to default state */
-    USART2_BASE.rs485adrmatch.set(0);
-    /* No need to clear MCR. Only in UART1*/
-    
-    /* Default 8N1, with DLAB disabled */
-    USART2_BASE.lcr.write(LCR::WLS::_8BitCharacterLength + LCR::SBS::_1StopBit + LCR::PE::DisableParityGenerationAndChecking);
 
-    /* Disable fractional divider */
-    USART2_BASE.fdr.set(0x10)
+
+pub struct Usart {
+    registers : StaticRef<UsartRegisters>,
+    client: OptionalCell<&'static kernel::hil::uart::Client>
 }
 
-/* I just wrote this to avoid making public some fields */
-pub fn uart2_init_lcr() 
-{
-    USART2_BASE.lcr.modify(LCR::WLS::_8BitCharacterLength + LCR::SBS::_1StopBit + LCR::PE::DisableParityGenerationAndChecking);
-}
-
-pub fn uart2_tx_enable() 
-{
-    USART2_BASE.ter.set(1);
-}
-
-/* Determines and sets best dividers to get a target baud rate */
-pub fn uart2_set_baud_fdr(baud : u32) -> u32
-{
-    let (mut sdiv, mut sm, mut sd) : (u32, u32, u32) = (0, 1, 0);
-    let pclk : u32;
-    let mut odiff : u32  = 0xFFFFFFFF; /* old best diff */
-
-    /* Get base clock for the corresponding UART */
-    pclk = ccu1::get_uart2_rate();
-
-    /* Loop through all possible fractional divider values */
-    for m in 1..16 {
-        if odiff == 0 {
-            break
+impl Usart {
+    const fn new(
+        base_addr: StaticRef<UsartRegisters>,
+    ) -> Usart {
+        Usart {
+            registers: base_addr,
+            // this gets defined later by `main.rs`
+            client: OptionalCell::empty(),
         }
-        for d in 0..m {
-            let (mut diff, mut div) : (u32, u32);
-            let dval : u64 = ((u64::from(pclk) << 28) * m) / (u64::from(baud) * (m + d));  
- 
-            /* Lower 32-bit of dval has diff */
-            diff = dval as u32;
-            /* Upper 32-bit of dval has div */
-            div = (dval >> 32) as u32; 
-
-            /* Closer to next div */
-            if diff >= 0x80000000 {
-                diff = diff ^ 0x80000000;
-                div += 1;
-            } 
-
-            /* Check if new value is worse than old or out of range */
-            if odiff < diff || div == 0 || (div >> 16) != 0 || (div < 3 && d != 0) {
-                continue;
+    }
+    pub fn disable_tx(&self) {
+        self.registers.ter.set(0);
+    }
+    
+    pub fn enable_tx(&self) {
+        self.registers.ter.set(1);
+    }
+    
+    pub fn init(&self) {
+        // This assumes you already called ccu1.uart2_init() 
+        /* Enable FIFOs by default, reset them */
+        self.registers.fcr.write(FCR::FIFOEN::ENABLED + FCR::RXFIFORES::RX_CLEAR + FCR::TXFIFORES::TX_CLEAR);
+        /* Disable Tx */
+        self.disable_tx();
+        
+        /* Disable interrupts */
+        self.registers.dlm.set(0);
+        /* Set LCR to default state */
+        self.registers.lcr.set(0);
+        /* Set ACR to default state */
+        self.registers.acr.write(ACR::START::StopAutoBaudStopAutoBaudIsNotRunning);
+        /* Set RS485 control to default state */
+        self.registers.rs485ctrl.write(RS485CTRL::NMMEN::DisabledRS485EIA485NormalMultidropModeNMMIsDisabled);
+        /* Set RS485 delay timer to default state */
+        self.registers.rs485dly.set(0);
+        /* Set RS485 addr match to default state */
+        self.registers.rs485adrmatch.set(0);
+        /* No need to clear MCR. Only in UART1, and it's NOT supported in the EDU-CIAA*/
+        
+        /* Default 8N1, with DLAB disabled */
+        self.registers.lcr.write(LCR::WLS::_8BitCharacterLength + LCR::SBS::_1StopBit + LCR::PE::DisableParityGenerationAndChecking);
+    
+        /* Disable fractional divider */
+        self.registers.fdr.set(0x10)
+    }
+    
+    /* I just wrote this to avoid making public some fields */
+    pub fn init_lcr(&self) 
+    {
+        self.registers.lcr.modify(LCR::WLS::_8BitCharacterLength + LCR::SBS::_1StopBit + LCR::PE::DisableParityGenerationAndChecking);
+    }
+    
+    /* Determines and sets best dividers to get a target baud rate */
+    pub fn set_baud_fdr(&self, baud : u32) -> u32
+    {
+        let (mut sdiv, mut sm, mut sd) : (u32, u32, u32) = (0, 1, 0);
+        let pclk : u32;
+        let mut odiff : u32  = 0xFFFFFFFF; /* old best diff */
+    
+        /* Get base clock for the corresponding UART */
+        pclk = ccu1::get_uart2_rate();
+    
+        /* Loop through all possible fractional divider values */
+        for m in 1..16 {
+            if odiff == 0 {
+                break
             }
-
-            /* Store the new better values */
-            sdiv = div;
-            sd = d as u32;
-            sm = m as u32;
-            odiff = diff;
-
-           /* On perfect match, break loop */
-           if diff == 0 {
-               break;
+            for d in 0..m {
+                let (mut diff, mut div) : (u32, u32);
+                let dval : u64 = ((u64::from(pclk) << 28) * m) / (u64::from(baud) * (m + d));  
+     
+                /* Lower 32-bit of dval has diff */
+                diff = dval as u32;
+                /* Upper 32-bit of dval has div */
+                div = (dval >> 32) as u32; 
+    
+                /* Closer to next div */
+                if diff >= 0x80000000 {
+                    diff = diff ^ 0x80000000;
+                    div += 1;
+                } 
+    
+                /* Check if new value is worse than old or out of range */
+                if odiff < diff || div == 0 || (div >> 16) != 0 || (div < 3 && d != 0) {
+                    continue;
+                }
+    
+                /* Store the new better values */
+                sdiv = div;
+                sd = d as u32;
+                sm = m as u32;
+                odiff = diff;
+    
+               /* On perfect match, break loop */
+               if diff == 0 {
+                   break;
+               }
            }
        }
-   }
-
-    /* Return 0 if a vaild divisor is not possible */
-    if sdiv == 0 {
-        return 0;
-    }
-
-    /* Update UART registers */
-    USART2_BASE.lcr.modify(LCR::DLAB::EnabledEnableAccessToDivisorLatches);
-    USART2_BASE.rbr.set(sdiv & 0xff);
-    USART2_BASE.dlm.set((sdiv >> 8) & 0xff);
-    USART2_BASE.lcr.modify(LCR::DLAB::DisabledDisableAccessToDivisorLatches);
-
-    /* Set best fractional divider */
-    USART2_BASE.fdr.write(FDR::MULVAL.val(sm) + FDR::DIVADDVAL.val(sd));
     
-    /* Return actual baud rate */
-    (pclk >> 4) * sm / (sdiv * (sm + sd))
+        /* Return 0 if a vaild divisor is not possible */
+        if sdiv == 0 {
+            return 0;
+        }
+    
+        /* Update UART registers */
+        self.registers.lcr.modify(LCR::DLAB::EnabledEnableAccessToDivisorLatches);
+        self.registers.rbr.set(sdiv & 0xff);
+        self.registers.dlm.set((sdiv >> 8) & 0xff);
+        self.registers.lcr.modify(LCR::DLAB::DisabledDisableAccessToDivisorLatches);
+    
+        /* Set best fractional divider */
+        self.registers.fdr.write(FDR::MULVAL.val(sm) + FDR::DIVADDVAL.val(sd));
+        
+        /* Return actual baud rate */
+        (pclk >> 4) * sm / (sdiv * (sm + sd))
+    }
+    pub fn put_byte(&self, some_byte : u8) {
+        self.registers.thr
+    }
 }
-pub fn uart2_write_char(baud : u32)
-{
-    }
-pub fn uart2_read_char(baud : u32)
-{
-    }
-pub fn uart2_write_str(baud : u32)
-{
+
+// ################# TOCKOS required code below ##################
+
+impl kernel::hil::uart::UART for Usart {
+    fn set_client(&self, client: &'static kernel::hil::uart::Client) {
+        self.client.set(client);
     }
 
+    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
+        // These could easily be implemented, but are currently ignored, so
+        // throw an error.
+        if params.stop_bits != kernel::hil::uart::StopBits::One {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.parity != kernel::hil::uart::Parity::None {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.hw_flow_control != false {
+            return ReturnCode::ENOSUPPORT;
+        }
+        //TODO: implement other UART in scu and ccu1
+        scu::init_uart2_pinfunc();
+        ccu1::uart2_init();
+        self.init();
+        self.set_baud_fdr(params.baud_rate);
+        self.init_lcr();
+        self.enable_tx();
+
+        ReturnCode::SUCCESS
+    }
+
+    fn transmit(&self, buffer: &'static mut [u8], len: usize) {
+        // if there is a weird input, don't try to do any transfers
+        if len == 0 {
+            self.tx_client.map(move |client| {
+                client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
+            });
+        } else {
+            // if client set len too big, we will receive what we can
+            let tx_len = cmp::min(len, buffer.len());
+
+            /* we could send one byte, causing EOT interrupt
+            if self.tx_fifo_not_full() {
+                self.send_byte(buffer[0]);
+            }
+
+            Transaction could be continued in interrupt handler
+            but we are in a hurry
+            self.tx.put(Transaction {
+                buffer: buffer,
+                length: tx_len,
+                index: 1,
+            });*/
+        }
+    }
+
+    fn receive(&self, buffer: &'static mut [u8], len: usize) {
+        if len == 0 {
+            self.client.map(move |client| {
+                client.receive_complete(buffer, len, kernel::hil::uart::Error::CommandComplete);
+            });
+        } else {
+            // if client set len too big, we will receive what we can
+            let rx_len = cmp::min(len, buffer.len());
+
+            /* it'd be nice to do it in an interrupt
+            sending one byte at a time like the cc26x2
+            but we are in a hurry, so lets send everything
+            self.rx.put(Transaction {
+                buffer: buffer,
+                length: rx_len,
+                index: 0,
+            });*/
+        }
+    }
+
+    /// Not actually implemented
+    fn abort_receive(&self) {
+            self.client.map(move |client| {
+                client.receive_complete(
+                    0,
+                    0,
+                    kernel::hil::uart::Error::CommandComplete,
+                );
+            });
+    }
+}
+
+// USART hardware peripherals on lpc4337
+pub static mut USART2: Usart = Usart::new(
+    USART2_BASE
+);
