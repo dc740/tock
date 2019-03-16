@@ -106,7 +106,7 @@ pub unsafe fn reset_handler() {
         )
     );
     hil::uart::UART::set_client(&lpc43xx::usart::USART2, uart_mux);
-
+/* TODO: don't use this until I implement an interrupt based send and receive
     // Create a UartDevice for the console.
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
     console_uart.setup();
@@ -121,7 +121,7 @@ pub unsafe fn reset_handler() {
         )
     );
     hil::uart::UART::set_client(console_uart, console);
-    
+  */  
     // Create a UartDevice for the kernel debugger.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
     debugger_uart.setup();

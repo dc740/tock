@@ -1,10 +1,9 @@
-
+use core::cmp;
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields};
 use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
 use {ccu1, scu};
-
 
 
 /// USART0_2_3
@@ -601,7 +600,10 @@ impl Usart {
         (pclk >> 4) * sm / (sdiv * (sm + sd))
     }
     pub fn put_byte(&self, some_byte : u8) {
-        self.registers.thr
+        self.registers.rbr.set(u32::from(some_byte))
+    }
+    pub fn get_byte(&self) -> u8 {
+        (self.registers.rbr.get() & 0xff) as u8
     }
 }
 
@@ -638,14 +640,21 @@ impl kernel::hil::uart::UART for Usart {
     fn transmit(&self, buffer: &'static mut [u8], len: usize) {
         // if there is a weird input, don't try to do any transfers
         if len == 0 {
-            self.tx_client.map(move |client| {
+            self.client.map(move |client| {
                 client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
             });
         } else {
             // if client set len too big, we will receive what we can
             let tx_len = cmp::min(len, buffer.len());
-
-            /* we could send one byte, causing EOT interrupt
+            
+            for i in 0..len {
+                self.put_byte(buffer[i]);
+            }
+            self.client.map(move |client| {
+                client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
+            });
+            
+            /* TODO: we could send one byte, causing EOT interrupt
             if self.tx_fifo_not_full() {
                 self.send_byte(buffer[0]);
             }
@@ -682,13 +691,7 @@ impl kernel::hil::uart::UART for Usart {
 
     /// Not actually implemented
     fn abort_receive(&self) {
-            self.client.map(move |client| {
-                client.receive_complete(
-                    0,
-                    0,
-                    kernel::hil::uart::Error::CommandComplete,
-                );
-            });
+        //TODO
     }
 }
 
