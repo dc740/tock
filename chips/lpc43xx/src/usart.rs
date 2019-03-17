@@ -644,10 +644,10 @@ impl kernel::hil::uart::UART for Usart {
                 client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
             });
         } else {
-            // if client set len too big, we will receive what we can
+            // if client set len too big, we will transmit what we can
             let tx_len = cmp::min(len, buffer.len());
             
-            for i in 0..len {
+            for i in 0..tx_len {
                 self.put_byte(buffer[i]);
             }
             self.client.map(move |client| {
@@ -677,7 +677,9 @@ impl kernel::hil::uart::UART for Usart {
         } else {
             // if client set len too big, we will receive what we can
             let rx_len = cmp::min(len, buffer.len());
-
+            for i in 0..rx_len {
+                buffer[i] = self.get_byte();
+            }
             /* it'd be nice to do it in an interrupt
             sending one byte at a time like the cc26x2
             but we are in a hurry, so lets send everything
