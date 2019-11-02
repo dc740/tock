@@ -148,13 +148,13 @@ pub unsafe extern "C" fn svc_handler() {
 }
 
 #[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, process_got: *const u8) -> *mut u8 {
+pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, _process_got: *const u8) -> *mut u8 {
     user_stack as *mut u8
 }
 
 #[cfg(target_os = "none")]
 #[no_mangle]
-/// r0 is top of user stack, r1 Process GOT
+/// r0 is top of user stack, r1 is reference to `CortexMStoredState.regs`
 pub unsafe extern "C" fn switch_to_user(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
@@ -272,7 +272,7 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
          \tBus Fault Address:       (valid: {}) {:#010X}\r\n\
          ",
         mode_str,
-        env!("TOCK_KERNEL_VERSION"),
+        option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown"),
         stacked_r0,
         stacked_r1,
         stacked_r2,
@@ -389,13 +389,13 @@ pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
         4 => "MemManage",
         5 => "BusFault",
         6 => "UsageFault",
-        7...10 => "Reserved",
+        7..=10 => "Reserved",
         11 => "SVCall",
         12 => "Reserved for Debug",
         13 => "Reserved",
         14 => "PendSV",
         15 => "SysTick",
-        16...255 => "IRQn",
+        16..=255 => "IRQn",
         _ => "(Unknown! Illegal value?)",
     }
 }

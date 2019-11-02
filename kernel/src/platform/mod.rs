@@ -12,7 +12,7 @@ pub trait Platform {
     /// the Driver methods for that syscall
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&Driver>) -> R;
+        F: FnOnce(Option<&dyn Driver>) -> R;
 }
 
 /// Interface for individual MCUs.
@@ -39,7 +39,7 @@ pub trait ClockInterface {
     fn disable(&self);
 }
 
-/// Helper struct for interfaces that expect clocks, but have no clock control
+/// Helper struct for interfaces that expect clocks, but have no clock control.
 pub struct NoClockControl {}
 impl ClockInterface for NoClockControl {
     fn is_enabled(&self) -> bool {
@@ -49,5 +49,6 @@ impl ClockInterface for NoClockControl {
     fn disable(&self) {}
 }
 
-/// Instance of NoClockControl for things that need references to `ClockInterface` objects
+/// Instance of NoClockControl for things that need references to
+/// `ClockInterface` objects.
 pub static mut NO_CLOCK_CONTROL: NoClockControl = NoClockControl {};
