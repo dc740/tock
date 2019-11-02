@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 //#![deny(missing_docs)]
+#![feature(asm)]
 
 extern crate capsules;
 #[allow(unused_imports)]
@@ -39,6 +40,7 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 
 /// Supported drivers by the platform
 pub struct Platform {
+    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     button: &'static capsules::button::Button<'static, lpc43xx::gpio::GPIOPin>,
     gpio: &'static capsules::gpio::GPIO<'static, lpc43xx::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, lpc43xx::gpio::GPIOPin>,
@@ -51,6 +53,7 @@ impl kernel::Platform for Platform {
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
@@ -73,6 +76,7 @@ pub unsafe fn reset_handler() {
     lpc43xx::creg::set_flash_acceleration(lpc43xx::creg::FLASHCFG::FLASHTIM::_10_BASE_M4_CLK_CLOCK);
     lpc43xx::cgu::board_setup_clocking(lpc43xx::cgu::BASE_CLK::CLK_SEL::CrystalOscillator, lpc43xx::cgu::MAX_CLOCK_FREQ, true);
     lpc43xx::creg::enable_32khz_1khz_osc();
+    lpc43xx::creg::enable_creg6_rmii_mode();
     
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -88,14 +92,7 @@ pub unsafe fn reset_handler() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let platform = Platform {
-            button: button,
-            gpio: gpio,
-            led: led,
-            ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
-        };
-    let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
-    
+
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
         MuxUart<'static>,
@@ -106,7 +103,6 @@ pub unsafe fn reset_handler() {
         )
     );
     hil::uart::UART::set_client(&lpc43xx::usart::USART2, uart_mux);
-/* TODO: don't use this until I implement an interrupt based send and receive
     // Create a UartDevice for the console.
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
     console_uart.setup();
@@ -121,7 +117,18 @@ pub unsafe fn reset_handler() {
         )
     );
     hil::uart::UART::set_client(console_uart, console);
-  */  
+    
+    let platform = Platform {
+            console: console,
+            button: button,
+            gpio: gpio,
+            led: led,
+            ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        };
+    let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
+
+    platform.console.initialize();
+    
     // Create a UartDevice for the kernel debugger.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
     debugger_uart.setup();
@@ -134,14 +141,14 @@ pub unsafe fn reset_handler() {
         )
     );
     hil::uart::UART::set_client(debugger_uart, debugger);
-    
+
     let debug_wrapper = static_init!(
         kernel::debug::DebugWriterWrapper,
         kernel::debug::DebugWriterWrapper::new(debugger)
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
     debug!("Initialization complete. Entering main loop");
-
+    
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

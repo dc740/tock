@@ -112,3 +112,19 @@ code alongside. Note that it also helps a lot to use the above
 attributes on functions that your function calls -- otherwise figuring
 out if the instructions are the function or its callees can be
 difficult.
+
+You can also use this unsafe code to debug variables that will be optimized out.
+This is very helpful if your gdb is completely buggy and behaves completely randomly as it does for the lpc4337 with rust.
+
+```
+unsafe {
+    asm!(
+        "mov $0, $0
+        bkpt #1"
+        :                                          // outputs
+        :  "r"(result)                             // inputs
+        :                                          // clobbers
+        :                                          // no options
+        );
+}
+```

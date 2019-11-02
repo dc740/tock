@@ -9,6 +9,18 @@ use lpc43xx;
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(_pi: &PanicInfo) -> ! {
+    //another panic possible implementation would be to wait here
+    unsafe {
+    asm!(
+        "mov $0, $0
+        bkpt #1"
+        :                                          // outputs
+        :  "r"(_pi)                             // inputs
+        :                                          // clobbers
+        :                                          // no options
+        );
+    }
+
     let led1 = &mut led::LedHigh::new(&mut lpc43xx::gpio::GPIO0[14]);
 	//let led2 = &mut led::LedHigh::new(&mut lpc43xx::gpio::GPIO1[11]);
 	let led3 = &mut led::LedHigh::new(&mut lpc43xx::gpio::GPIO1[12]);

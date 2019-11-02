@@ -452,3 +452,7 @@ pub fn set_flash_acceleration(flashtim: FieldValue<u32, FLASHCFG::Register>) {
 pub fn is_creg6_rmii_mode() -> bool {
     CREG_BASE.creg6.matches_all(CREG6::ETHMODE::RMII)
 }
+
+pub fn enable_creg6_rmii_mode() {
+    CREG_BASE.creg6.modify(CREG6::ETHMODE::RMII)
+}

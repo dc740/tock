@@ -62,8 +62,6 @@ use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
-    //TODO: copy pasted from SAM4L just to test something
-
     // IPSR[8:0] holds the currently active interrupt
     asm!(
     "mrs    r0, ipsr                    "

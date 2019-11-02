@@ -512,9 +512,9 @@ impl Usart {
         /* Set LCR to default state */
         self.registers.lcr.set(0);
         /* Set ACR to default state */
-        self.registers.acr.write(ACR::START::StopAutoBaudStopAutoBaudIsNotRunning);
+        self.registers.acr.set(0);
         /* Set RS485 control to default state */
-        self.registers.rs485ctrl.write(RS485CTRL::NMMEN::DisabledRS485EIA485NormalMultidropModeNMMIsDisabled);
+        self.registers.rs485ctrl.set(0);
         /* Set RS485 delay timer to default state */
         self.registers.rs485dly.set(0);
         /* Set RS485 addr match to default state */
@@ -535,6 +535,8 @@ impl Usart {
     }
     
     /* Determines and sets best dividers to get a target baud rate */
+    #[inline(never)]
+    #[no_mangle]
     pub fn set_baud_fdr(&self, baud : u32) -> u32
     {
         let (mut sdiv, mut sm, mut sd) : (u32, u32, u32) = (0, 1, 0);
@@ -560,7 +562,7 @@ impl Usart {
     
                 /* Closer to next div */
                 if diff >= 0x80000000 {
-                    diff = diff ^ 0x80000000;
+                    diff = !diff + 1;
                     div += 1;
                 } 
     
@@ -597,7 +599,19 @@ impl Usart {
         self.registers.fdr.write(FDR::MULVAL.val(sm) + FDR::DIVADDVAL.val(sd));
         
         /* Return actual baud rate */
-        (pclk >> 4) * sm / (sdiv * (sm + sd))
+        let result = (pclk >> 4) * sm / (sdiv * (sm + sd));
+        //do nothing with the result. but allkow us to debug it
+        unsafe {
+            asm!(
+                "mov $0, $0
+                bkpt #1"
+                :                                          // outputs
+                :  "r"(result)                             // inputs
+                :                                          // clobbers
+                :                                          // no options
+                );
+        }
+        result
     }
     pub fn put_byte(&self, some_byte : u8) {
         self.registers.rbr.set(u32::from(some_byte))
@@ -613,7 +627,8 @@ impl kernel::hil::uart::UART for Usart {
     fn set_client(&self, client: &'static kernel::hil::uart::Client) {
         self.client.set(client);
     }
-
+#[inline(never)]
+#[no_mangle]
     fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
         // These could easily be implemented, but are currently ignored, so
         // throw an error.

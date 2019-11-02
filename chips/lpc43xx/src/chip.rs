@@ -31,12 +31,12 @@ impl Chip for Lpc43xx {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
                         _ => {
-                            (); //panic!("unhandled interrupt {}", interrupt);
+                            panic!("unhandled interrupt {}", interrupt);
                         }
                     }
                     
                     let n = cortexm4::nvic::Nvic::new(interrupt);
-                    n.clear_pending();
+                    //n.clear_pending();
                     n.enable();
                 } else {
                     break;
