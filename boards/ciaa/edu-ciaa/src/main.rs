@@ -34,20 +34,20 @@ const NUM_PROCS: usize = 4;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
 
 /// Supported drivers by the platform
 pub struct Platform {
-    button: &'static capsules::button::Button<'static, lpc43xx::gpio::GPIOPin>,
-    gpio: &'static capsules::gpio::GPIO<'static, lpc43xx::gpio::GPIOPin>,
-    led: &'static capsules::led::LED<'static, lpc43xx::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static>,
+    led: &'static capsules::led::LED<'static>,
     ipc: kernel::ipc::IPC,
 }
 
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
@@ -75,9 +75,9 @@ pub unsafe fn reset_handler() {
     
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let button = ButtonComponent::new(board_kernel).finalize();
-    let gpio = GpioComponent::new(board_kernel).finalize();
-    let led = LedComponent::new().finalize();
+    let button = ButtonComponent::new(board_kernel).finalize(());
+    let gpio = GpioComponent::new(board_kernel).finalize(());
+    let led = LedComponent::new().finalize(());
     
 
     // Create capabilities that the board needs to call certain protected kernel

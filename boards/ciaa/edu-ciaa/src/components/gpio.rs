@@ -20,6 +20,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::static_init;
+use kernel;
 
 pub struct GpioComponent {
     board_kernel: &'static kernel::Kernel,
@@ -28,20 +29,21 @@ pub struct GpioComponent {
 impl GpioComponent {
     pub fn new(board_kernel: &'static kernel::Kernel) -> GpioComponent {
         GpioComponent {
-            board_kernel: board_kernel,
+            board_kernel,
         }
     }
 }
 /// GPIO component that lists the same GPIO ports as the sAPI for the edu-ciaa-nxp
 /// LEDs and buttons have their own separate capsule.
 impl Component for GpioComponent {
-    type Output = &'static gpio::GPIO<'static, lpc43xx::gpio::GPIOPin>;
+    type StaticInput = ();
+    type Output = &'static gpio::GPIO<'static>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let gpio_pins = static_init!(
-            [&'static lpc43xx::gpio::GPIOPin; 36],
+            [&'static dyn kernel::hil::gpio::InterruptValuePin; 36],
             [
 				/*LPC GPIO port             |Index|Connector|Serigraphy|      */
                 &lpc43xx::gpio::GPIO2[1],  /*   0   CON1_36   T_FIL1           */
@@ -95,12 +97,12 @@ impl Component for GpioComponent {
         );
 
         let gpio = static_init!(
-            gpio::GPIO<'static, lpc43xx::gpio::GPIOPin>,
-            gpio::GPIO::new(gpio_pins, self.board_kernel.create_grant(&grant_cap))
+            gpio::GPIO<'static>,
+            gpio::GPIO::new(&gpio_pins[..], self.board_kernel.create_grant(&grant_cap))
         );
-        for pin in gpio_pins.iter() {
+        /*for pin in gpio_pins.iter() {  // we haven't implemented the interrupts
             pin.set_client(gpio);
-        }
+        }*/
 
         gpio
     }
