@@ -36,21 +36,21 @@ const NUM_PROCS: usize = 4;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
 
 /// Supported drivers by the platform
-pub struct Platform {
-    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
-    button: &'static capsules::button::Button<'static, lpc43xx::gpio::GPIOPin>,
-    gpio: &'static capsules::gpio::GPIO<'static, lpc43xx::gpio::GPIOPin>,
-    led: &'static capsules::led::LED<'static, lpc43xx::gpio::GPIOPin>,
+pub struct EduCiaaNXP {
+    console: &'static capsules::console::Console<'static>,
+    button: &'static capsules::button::Button<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static>,
+    led: &'static capsules::led::LED<'static>,
     ipc: kernel::ipc::IPC,
 }
 
-impl kernel::Platform for Platform {
+impl kernel::Platform for EduCiaaNXP {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -80,9 +80,9 @@ pub unsafe fn reset_handler() {
     
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let button = ButtonComponent::new(board_kernel).finalize();
-    let gpio = GpioComponent::new(board_kernel).finalize();
-    let led = LedComponent::new().finalize();
+    let button = ButtonComponent::new(board_kernel).finalize(());
+    let gpio = GpioComponent::new(board_kernel).finalize(());
+    let led = LedComponent::new().finalize(());
     
 
     // Create capabilities that the board needs to call certain protected kernel
@@ -102,32 +102,10 @@ pub unsafe fn reset_handler() {
             115200
         )
     );
-    hil::uart::UART::set_client(&lpc43xx::usart::USART2, uart_mux);
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-    let console = static_init!(
-        capsules::console::Console<UartDevice>,
-        capsules::console::Console::new(
-            console_uart,
-            115200,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    hil::uart::UART::set_client(console_uart, console);
+    uart_mux.initialize();
     
-    let platform = Platform {
-            console: console,
-            button: button,
-            gpio: gpio,
-            led: led,
-            ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
-        };
-    let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
-
-    platform.console.initialize();
+    hil::uart::Transmit::set_transmit_client(&lpc43xx::usart::USART2, uart_mux);
+    hil::uart::Receive::set_receive_client(&lpc43xx::usart::USART2, uart_mux);
     
     // Create a UartDevice for the kernel debugger.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
@@ -140,7 +118,7 @@ pub unsafe fn reset_handler() {
             &mut kernel::debug::INTERNAL_BUF,
         )
     );
-    hil::uart::UART::set_client(debugger_uart, debugger);
+    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
     let debug_wrapper = static_init!(
         kernel::debug::DebugWriterWrapper,
@@ -149,6 +127,32 @@ pub unsafe fn reset_handler() {
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
     debug!("Initialization complete. Entering main loop");
     
+    // Create a UartDevice for the console.
+    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    console_uart.setup();
+    let console = static_init!(
+        capsules::console::Console<'static>,
+        capsules::console::Console::new(
+            console_uart,
+            &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    hil::uart::Transmit::set_transmit_client(console_uart, console);
+    hil::uart::Receive::set_receive_client(console_uart, console);
+    
+    
+    let platform = EduCiaaNXP {
+            console: console,
+            button: button,
+            gpio: gpio,
+            led: led,
+            ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        };
+    let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
+
+    //platform.console.initialize();
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

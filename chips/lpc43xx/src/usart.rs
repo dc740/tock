@@ -1,57 +1,56 @@
 use core::cmp;
-use kernel::common::StaticRef;
-use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields};
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::common::StaticRef;
 use kernel::ReturnCode;
 use {ccu1, scu};
-
 
 /// USART0_2_3
 #[repr(C)]
 struct UsartRegisters {
-/// Receiver Buffer Register. Contains the next received character to be read (DLAB
-/// Also:
-///  * Divisor Latch LSB. Least significant byte of the baud rate divisor value. The full divisor is used to generate a baud rate from the fractional rate divider (DLAB = 1). 
-///  * Transmit Holding Register. The next character to be transmitted is written here (DLAB = 0). 
-rbr: ReadWrite<u32>,
-/// Divisor Latch MSB. Most significant byte of the baud rate divisor value. The ful
-/// Also Interrupt Enable Register. Contains individual interrupt enable bits for the 7 potential UART interrupts (DLAB = 0).
-dlm: ReadWrite<u32>, 
-/// Interrupt ID Register. Identifies which interrupt(s) are pending. (ReadOnly)
-/// Also FIFO Control Register. Controls UART FIFO usage and modes. So we changed from ReadOnly to ReadWrite
-fcr: ReadWrite<u32, FCR::Register>, 
-/// Line Control Register. Contains controls for frame formatting and break generati
-lcr: ReadWrite<u32, LCR::Register>,
-_reserved0: [u8; 4],
-/// Line Status Register. Contains flags for transmit and receive status, including
-lsr: ReadOnly<u32, LSR::Register>,
-_reserved1: [u8; 4],
-/// Scratch Pad Register. Eight-bit temporary storage for software.
-scr: ReadWrite<u32>,
-/// Auto-baud Control Register. Contains controls for the auto-baud feature.
-acr: ReadWrite<u32, ACR::Register>,
-/// IrDA control register (USART3 only)
-icr: ReadWrite<u32, ICR::Register>,
-/// Fractional Divider Register. Generates a clock input for the baud rate divider.
-fdr: ReadWrite<u32, FDR::Register>,
-/// Oversampling Register. Controls the degree of oversampling during each bit time.
-osr: ReadWrite<u32, OSR::Register>,
-_reserved2: [u8; 16], //TER1, etc
-/// Half-duplex enable Register
-hden: ReadWrite<u32>,
-_reserved3: [u8; 4],
-/// Smart card interface control register
-scictrl: ReadWrite<u32, SCICTRL::Register>,
-/// RS-485/EIA-485 Control. Contains controls to configure various aspects of RS-485
-rs485ctrl: ReadWrite<u32, RS485CTRL::Register>,
-/// RS-485/EIA-485 address match. Contains the address match value for RS-485/EIA-48
-rs485adrmatch: ReadWrite<u32>,
-/// RS-485/EIA-485 direction control delay.
-rs485dly: ReadWrite<u32>,
-/// Synchronous mode control register.
-syncctrl: ReadWrite<u32, SYNCCTRL::Register>,
-/// Transmit Enable Register. Turns off USART transmitter for use with software flow
-ter: ReadWrite<u32>, //AKA TER2
+    /// Receiver Buffer Register. Contains the next received character to be read (DLAB
+    /// Also:
+    ///  * Divisor Latch LSB. Least significant byte of the baud rate divisor value. The full divisor is used to generate a baud rate from the fractional rate divider (DLAB = 1).
+    ///  * Transmit Holding Register. The next character to be transmitted is written here (DLAB = 0).
+    rbr: ReadWrite<u32>,
+    /// Divisor Latch MSB. Most significant byte of the baud rate divisor value. The ful
+    /// Also Interrupt Enable Register. Contains individual interrupt enable bits for the 7 potential UART interrupts (DLAB = 0).
+    dlm: ReadWrite<u32>,
+    /// Interrupt ID Register. Identifies which interrupt(s) are pending. (ReadOnly)
+    /// Also FIFO Control Register. Controls UART FIFO usage and modes. So we changed from ReadOnly to ReadWrite
+    fcr: ReadWrite<u32, FCR::Register>,
+    /// Line Control Register. Contains controls for frame formatting and break generati
+    lcr: ReadWrite<u32, LCR::Register>,
+    _reserved0: [u8; 4],
+    /// Line Status Register. Contains flags for transmit and receive status, including
+    lsr: ReadOnly<u32, LSR::Register>,
+    _reserved1: [u8; 4],
+    /// Scratch Pad Register. Eight-bit temporary storage for software.
+    scr: ReadWrite<u32>,
+    /// Auto-baud Control Register. Contains controls for the auto-baud feature.
+    acr: ReadWrite<u32, ACR::Register>,
+    /// IrDA control register (USART3 only)
+    icr: ReadWrite<u32, ICR::Register>,
+    /// Fractional Divider Register. Generates a clock input for the baud rate divider.
+    fdr: ReadWrite<u32, FDR::Register>,
+    /// Oversampling Register. Controls the degree of oversampling during each bit time.
+    osr: ReadWrite<u32, OSR::Register>,
+    _reserved2: [u8; 16], //TER1, etc
+    /// Half-duplex enable Register
+    hden: ReadWrite<u32>,
+    _reserved3: [u8; 4],
+    /// Smart card interface control register
+    scictrl: ReadWrite<u32, SCICTRL::Register>,
+    /// RS-485/EIA-485 Control. Contains controls to configure various aspects of RS-485
+    rs485ctrl: ReadWrite<u32, RS485CTRL::Register>,
+    /// RS-485/EIA-485 address match. Contains the address match value for RS-485/EIA-48
+    rs485adrmatch: ReadWrite<u32>,
+    /// RS-485/EIA-485 direction control delay.
+    rs485dly: ReadWrite<u32>,
+    /// Synchronous mode control register.
+    syncctrl: ReadWrite<u32, SYNCCTRL::Register>,
+    /// Transmit Enable Register. Turns off USART transmitter for use with software flow
+    ter: ReadWrite<u32>, //AKA TER2
 }
 register_bitfields![u32,
 IER [
@@ -467,46 +466,40 @@ SYNCCTRL [
 //const USART0_BASE: StaticRef<UsartRegisters> =
 //    unsafe { StaticRef::new(0x40081000 as *const UsartRegisters) };
 
-
 const USART2_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x400C1000 as *const UsartRegisters) };
 
-
 //const USART3_BASE: StaticRef<UsartRegisters> =
 //    unsafe { StaticRef::new(0x400C2000 as *const UsartRegisters) };
-    
 
-
-pub struct Usart {
-    registers : StaticRef<UsartRegisters>,
-    client: OptionalCell<&'static kernel::hil::uart::Client>
+pub struct Usart<'a> {
+    registers: StaticRef<UsartRegisters>,
+    tx_client: OptionalCell<&'a dyn kernel::hil::uart::TransmitClient>,
+    rx_client: OptionalCell<&'a dyn kernel::hil::uart::ReceiveClient>,
 }
 
-impl Usart {
-    const fn new(
-        base_addr: StaticRef<UsartRegisters>,
-    ) -> Usart {
+impl<'a> Usart<'a> {
+    const fn new(base_addr: StaticRef<UsartRegisters>) -> Usart<'a> {
         Usart {
             registers: base_addr,
-            // this gets defined later by `main.rs`
-            client: OptionalCell::empty(),
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
         }
     }
     pub fn disable_tx(&self) {
         self.registers.ter.set(0);
     }
-    
     pub fn enable_tx(&self) {
         self.registers.ter.set(1);
     }
-    
     pub fn init(&self) {
-        // This assumes you already called ccu1.uart2_init() 
+        // This assumes you already called ccu1.uart2_init()
         /* Enable FIFOs by default, reset them */
-        self.registers.fcr.write(FCR::FIFOEN::ENABLED + FCR::RXFIFORES::RX_CLEAR + FCR::TXFIFORES::TX_CLEAR);
+        self.registers
+            .fcr
+            .write(FCR::FIFOEN::ENABLED + FCR::RXFIFORES::RX_CLEAR + FCR::TXFIFORES::TX_CLEAR);
         /* Disable Tx */
         self.disable_tx();
-        
         /* Disable interrupts */
         self.registers.dlm.set(0);
         /* Set LCR to default state */
@@ -520,100 +513,98 @@ impl Usart {
         /* Set RS485 addr match to default state */
         self.registers.rs485adrmatch.set(0);
         /* No need to clear MCR. Only in UART1, and it's NOT supported in the EDU-CIAA*/
-        
         /* Default 8N1, with DLAB disabled */
-        self.registers.lcr.write(LCR::WLS::_8BitCharacterLength + LCR::SBS::_1StopBit + LCR::PE::DisableParityGenerationAndChecking);
-    
+        self.registers.lcr.write(
+            LCR::WLS::_8BitCharacterLength
+                + LCR::SBS::_1StopBit
+                + LCR::PE::DisableParityGenerationAndChecking,
+        );
         /* Disable fractional divider */
         self.registers.fdr.set(0x10)
     }
-    
     /* I just wrote this to avoid making public some fields */
-    pub fn init_lcr(&self) 
-    {
-        self.registers.lcr.modify(LCR::WLS::_8BitCharacterLength + LCR::SBS::_1StopBit + LCR::PE::DisableParityGenerationAndChecking);
+    pub fn init_lcr(&self) {
+        self.registers.lcr.modify(
+            LCR::WLS::_8BitCharacterLength
+                + LCR::SBS::_1StopBit
+                + LCR::PE::DisableParityGenerationAndChecking,
+        );
     }
-    
     /* Determines and sets best dividers to get a target baud rate */
     #[inline(never)]
     #[no_mangle]
-    pub fn set_baud_fdr(&self, baud : u32) -> u32
-    {
-        let (mut sdiv, mut sm, mut sd) : (u32, u32, u32) = (0, 1, 0);
-        let pclk : u32;
-        let mut odiff : u32  = 0xFFFFFFFF; /* old best diff */
-    
+    pub fn set_baud_fdr(&self, baud: u32) -> u32 {
+        let (mut sdiv, mut sm, mut sd): (u32, u32, u32) = (0, 1, 0);
+        let pclk: u32;
+        let mut odiff: u32 = 0xFFFFFFFF; /* old best diff */
         /* Get base clock for the corresponding UART */
         pclk = ccu1::get_uart2_rate();
-    
         /* Loop through all possible fractional divider values */
         for m in 1..16 {
             if odiff == 0 {
-                break
+                break;
             }
             for d in 0..m {
-                let (mut diff, mut div) : (u32, u32);
-                let dval : u64 = ((u64::from(pclk) << 28) * m) / (u64::from(baud) * (m + d));  
-     
+                let (mut diff, mut div): (u32, u32);
+                let dval: u64 = ((u64::from(pclk) << 28) * m) / (u64::from(baud) * (m + d));
                 /* Lower 32-bit of dval has diff */
                 diff = dval as u32;
                 /* Upper 32-bit of dval has div */
-                div = (dval >> 32) as u32; 
-    
+                div = (dval >> 32) as u32;
                 /* Closer to next div */
                 if diff >= 0x80000000 {
                     diff = !diff + 1;
                     div += 1;
-                } 
-    
+                }
                 /* Check if new value is worse than old or out of range */
                 if odiff < diff || div == 0 || (div >> 16) != 0 || (div < 3 && d != 0) {
                     continue;
                 }
-    
                 /* Store the new better values */
                 sdiv = div;
                 sd = d as u32;
                 sm = m as u32;
                 odiff = diff;
-    
-               /* On perfect match, break loop */
-               if diff == 0 {
-                   break;
-               }
-           }
-       }
-    
+
+                /* On perfect match, break loop */
+                if diff == 0 {
+                    break;
+                }
+            }
+        }
         /* Return 0 if a vaild divisor is not possible */
         if sdiv == 0 {
             return 0;
         }
-    
         /* Update UART registers */
-        self.registers.lcr.modify(LCR::DLAB::EnabledEnableAccessToDivisorLatches);
+        self.registers
+            .lcr
+            .modify(LCR::DLAB::EnabledEnableAccessToDivisorLatches);
         self.registers.rbr.set(sdiv & 0xff);
         self.registers.dlm.set((sdiv >> 8) & 0xff);
-        self.registers.lcr.modify(LCR::DLAB::DisabledDisableAccessToDivisorLatches);
-    
+        self.registers
+            .lcr
+            .modify(LCR::DLAB::DisabledDisableAccessToDivisorLatches);
         /* Set best fractional divider */
-        self.registers.fdr.write(FDR::MULVAL.val(sm) + FDR::DIVADDVAL.val(sd));
-        
+        self.registers
+            .fdr
+            .write(FDR::MULVAL.val(sm) + FDR::DIVADDVAL.val(sd));
         /* Return actual baud rate */
         let result = (pclk >> 4) * sm / (sdiv * (sm + sd));
         //do nothing with the result. but allkow us to debug it
         unsafe {
             asm!(
-                "mov $0, $0
-                bkpt #1"
-                :                                          // outputs
-                :  "r"(result)                             // inputs
-                :                                          // clobbers
-                :                                          // no options
-                );
+            "mov $0, $0
+            bkpt #1"
+            :                                          // outputs
+            :  "r"(result)                             // inputs
+            :                                          // clobbers
+            :                                          // no options
+            );
         }
         result
     }
-    pub fn put_byte(&self, some_byte : u8) {
+    pub fn put_byte(&self, some_byte: u8) {
         self.registers.rbr.set(u32::from(some_byte))
     }
     pub fn get_byte(&self) -> u8 {
@@ -623,13 +614,10 @@ impl Usart {
 
 // ################# TOCKOS required code below ##################
 
-impl kernel::hil::uart::UART for Usart {
-    fn set_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.client.set(client);
-    }
-#[inline(never)]
-#[no_mangle]
-    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
+impl<'a> kernel::hil::uart::Configure for Usart<'a> {
+    #[inline(never)]
+    #[no_mangle]
+    fn configure(&self, params: kernel::hil::uart::Parameters) -> ReturnCode {
         // These could easily be implemented, but are currently ignored, so
         // throw an error.
         if params.stop_bits != kernel::hil::uart::StopBits::One {
@@ -651,68 +639,129 @@ impl kernel::hil::uart::UART for Usart {
 
         ReturnCode::SUCCESS
     }
-
-    fn transmit(&self, buffer: &'static mut [u8], len: usize) {
-        // if there is a weird input, don't try to do any transfers
-        if len == 0 {
-            self.client.map(move |client| {
-                client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
-            });
-        } else {
-            // if client set len too big, we will transmit what we can
-            let tx_len = cmp::min(len, buffer.len());
-            
-            for i in 0..tx_len {
-                self.put_byte(buffer[i]);
-            }
-            self.client.map(move |client| {
-                client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
-            });
-            
-            /* TODO: we could send one byte, causing EOT interrupt
-            if self.tx_fifo_not_full() {
-                self.send_byte(buffer[0]);
-            }
-
-            Transaction could be continued in interrupt handler
-            but we are in a hurry
-            self.tx.put(Transaction {
-                buffer: buffer,
-                length: tx_len,
-                index: 1,
-            });*/
-        }
-    }
-
-    fn receive(&self, buffer: &'static mut [u8], len: usize) {
-        if len == 0 {
-            self.client.map(move |client| {
-                client.receive_complete(buffer, len, kernel::hil::uart::Error::CommandComplete);
-            });
-        } else {
-            // if client set len too big, we will receive what we can
-            let rx_len = cmp::min(len, buffer.len());
-            for i in 0..rx_len {
-                buffer[i] = self.get_byte();
-            }
-            /* it'd be nice to do it in an interrupt
-            sending one byte at a time like the cc26x2
-            but we are in a hurry, so lets send everything
-            self.rx.put(Transaction {
-                buffer: buffer,
-                length: rx_len,
-                index: 0,
-            });*/
-        }
-    }
-
-    /// Not actually implemented
-    fn abort_receive(&self) {
-        //TODO
-    }
 }
 
+impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
+    /// Set the transmit client, which will be called when transmissions
+    /// complete.
+    fn set_transmit_client(&self, client: &'a dyn kernel::hil::uart::TransmitClient) {
+        self.tx_client.set(client);
+    }
+    /// Transmit a buffer of data. On completion, `transmitted_buffer`
+    /// in the `TransmitClient` will be called.  If the `ReturnCode`
+    /// of `transmit`'s return tuple is SUCCESS, the `Option` will be
+    /// `None` and the struct will issue a `transmitted_buffer`
+    /// callback in the future. If the value of the `ReturnCode` is
+    /// not SUCCESS, then the `tx_buffer` argument is returned in the
+    /// `Option`. Other valid `ReturnCode` values are:
+    ///  - EOFF: The underlying hardware is not available, perhaps because
+    ///          because it has not been initialized or in the case of a shared
+    ///          hardware USART controller because it is set up for SPI.
+    ///  - EBUSY: the UART is already transmitting and has not made a
+    ///           transmission callback yet.
+    ///  - ESIZE : `tx_len` is larger than the passed slice.
+    ///  - FAIL: some other error.
+    ///
+    /// Each byte in `tx_buffer` is a UART transfer word of 8 or fewer
+    /// bits.  The word width is determined by the UART configuration,
+    /// truncating any more significant bits. E.g., 0x18f transmitted in
+    /// 8N1 will be sent as 0x8f and in 7N1 will be sent as 0x0f. Clients
+    /// that need to transfer 9-bit words should use `transmit_word`.
+    ///
+    /// Calling `transmit_buffer` while there is an outstanding
+    /// `transmit_buffer` or `transmit_word` operation will return EBUSY.
+    fn transmit_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        // if client set len too big, we will transmit what we can
+        let tx_final_len = cmp::min(tx_len, tx_buffer.len());
+        for i in 0..tx_final_len {
+            self.put_byte(tx_buffer[i]);
+        }
+        /* TODO: we could send one byte, causing EOT interrupt
+        if self.tx_fifo_not_full() {
+            self.send_byte(buffer[0]);
+        }
+
+        Transaction could be continued in interrupt handler
+        but we are in a hurry
+        self.tx.put(Transaction {
+            buffer: buffer,
+            length: tx_len,
+            index: 1,
+        });*/
+        (ReturnCode::SUCCESS, None)
+    }
+    /// Transmit a single word of data asynchronously. The word length is
+    /// determined by the UART configuration: it can be 6, 7, 8, or 9 bits long.
+    /// If the `ReturnCode` is SUCCESS, on completion,
+    /// `transmitted_word` will be called on the `TransmitClient`.
+    /// Other valid `ReturnCode` values are:
+    ///  - EOFF: The underlying hardware is not available, perhaps because
+    ///          because it has not been initialized or in the case of a shared
+    ///          hardware USART controller because it is set up for SPI.
+    ///  - EBUSY: the UART is already transmitting and has not made a
+    ///           transmission callback yet.
+    ///  - FAIL: not supported, or some other error.
+    /// If the `ReturnCode` is not SUCCESS, no callback will be made.
+    /// Calling `transmit_word` while there is an outstanding
+    /// `transmit_buffer` or `transmit_word` operation will return
+    /// EBUSY.
+    fn transmit_word(&self, word: u32) -> ReturnCode {
+        //TODO: not implemented
+        ReturnCode::FAIL
+    }
+
+    /// Abort an outstanding call to `transmit_word` or `transmit_buffer`.
+    /// The return code indicates whether the call has fully terminated or
+    /// there will be a callback. Cancelled calls to `transmit_buffer` MUST
+    /// always make a callback, to return the passed buffer back to the caller.
+    ///
+    /// If abort_transmit returns SUCCESS, there will be no future
+    /// callback and the client may retransmit immediately. If
+    /// abort_transmit returns any other `ReturnCode` there will be a
+    /// callback. This means that if there is no outstanding call to
+    /// `transmit_word` or `transmit_buffer` then a call to
+    /// `abort_transmit` returns SUCCESS. If there was a `transmit`
+    /// outstanding and is cancelled successfully then `EBUSY` will
+    /// be returned and a there will be a callback with a `ReturnCode`
+    /// of `ECANCEL`.  If there was a reception outstanding, which is
+    /// not cancelled successfully, then `FAIL` will be returned and
+    /// there will be a later callback.
+    ///
+    /// Returns SUCCESS or
+    ///  - FAIL if the outstanding call to either transmit operation could
+    ///    not be synchronously cancelled. A callback will be made on the
+    ///    client indicating whether the call was successfully cancelled.
+    fn transmit_abort(&self) -> ReturnCode {
+        //TODO: not implemented
+        ReturnCode::FAIL
+    }
+}
+impl<'a> kernel::hil::uart::Receive<'a> for Usart<'a> {
+    fn set_receive_client(&self, client: &'a dyn kernel::hil::uart::ReceiveClient) {
+        self.rx_client.set(client);
+    }
+
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        (ReturnCode::FAIL, None)
+    }
+    fn receive_word(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn receive_abort(&self) -> ReturnCode {
+        //self.abort_rx(ReturnCode::ECANCEL, hil::uart::Error::Aborted);
+        //ReturnCode::EBUSY
+        ReturnCode::FAIL
+    }
+}
+impl<'a> kernel::hil::uart::Uart<'a> for Usart<'a> {}
 // USART hardware peripherals on lpc4337
-pub static mut USART2: Usart = Usart::new(
-    USART2_BASE
-);
+pub static mut USART2: Usart = Usart::new(USART2_BASE);

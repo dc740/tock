@@ -28,19 +28,23 @@ pub struct ButtonComponent {
 impl ButtonComponent {
     pub fn new(board_kernel: &'static kernel::Kernel) -> ButtonComponent {
         ButtonComponent {
-            board_kernel: board_kernel,
+            board_kernel,
         }
     }
 }
 
 impl Component for ButtonComponent {
-    type Output = &'static button::Button<'static, lpc43xx::gpio::GPIOPin>;
+    type StaticInput = ();
+    type Output = &'static button::Button<'static>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let button_pins = static_init!(
-            [(&'static lpc43xx::gpio::GPIOPin, button::GpioMode); 4],
+            [(
+                &'static dyn kernel::hil::gpio::InterruptValuePin,
+                button::GpioMode
+            ); 4],
             [(&lpc43xx::gpio::GPIO0[4], button::GpioMode::LowWhenPressed),
 			(&lpc43xx::gpio::GPIO0[8], button::GpioMode::LowWhenPressed),
 			(&lpc43xx::gpio::GPIO0[9], button::GpioMode::LowWhenPressed),
@@ -48,11 +52,12 @@ impl Component for ButtonComponent {
         );
 
         let button = static_init!(
-            button::Button<'static, lpc43xx::gpio::GPIOPin>,
-            button::Button::new(button_pins, self.board_kernel.create_grant(&grant_cap))
+            button::Button<'static>,
+            // we have to send &button_pins[..] because it expects a slice, not an array
+            button::Button::new(&button_pins[..], self.board_kernel.create_grant(&grant_cap))
         );
         for &(btn, _) in button_pins.iter() {
-            btn.set_client(button);
+            // btn.set_client(button); No need to set the client, since we are not using interrupts
 			btn.make_input();
         }
 

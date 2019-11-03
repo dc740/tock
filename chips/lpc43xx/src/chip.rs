@@ -1,6 +1,5 @@
 //! Interrupt mapping and DMA channel setup.
 use cortexm4;
-use kernel::common::deferred_call;
 use kernel::Chip;
 
 

@@ -1,9 +1,10 @@
+
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::AtomicUsize;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-
+use kernel::ReturnCode;
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadWrite, WriteOnly, FieldValue};
 use scu::{SCU_BASE, SFSP};
@@ -388,7 +389,7 @@ pub struct GPIOPin {
 	gpio_port: u32,
 	gpio_pin: u32,
     client_data: Cell<usize>,
-    client: OptionalCell<&'static hil::gpio::Client>,
+    client: OptionalCell<&'static dyn hil::gpio::Client>,
 }
 
 impl GPIOPin {
@@ -399,11 +400,11 @@ impl GPIOPin {
 	gpio_port: u32,
 	gpio_pin: u32) -> GPIOPin {
         GPIOPin {
-			port_name: port_name,
-			pin_name: pin_name,
-			func: func,
-			gpio_port: gpio_port,
-			gpio_pin: gpio_pin,
+			port_name,
+			pin_name,
+			func,
+			gpio_port,
+			gpio_pin,
             client_data: Cell::new(0),
             client: OptionalCell::empty(),
         }
@@ -479,10 +480,11 @@ impl GPIOPin {
 		b.get() != 0
     }
 
-    pub fn toggle(&self) {
+    pub fn toggle(&self) -> bool {
 		let b = &GPIO_PORT_BASE.b[self.gpio_port as usize][self.gpio_pin as usize];
         let val = self.read();
-		b.set((val as u8 == 0) as u8)
+		b.set((val as u8 == 0) as u8);
+        (val as u8 == 0)
     }
 
     pub fn set(&self) {
@@ -507,45 +509,89 @@ impl hil::Controller for GPIOPin {
     }
 }
 
-impl hil::gpio::PinCtl for GPIOPin {
-    fn set_input_mode(&self, mode: hil::gpio::InputMode) {
-		let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
+impl hil::gpio::Pin for GPIOPin {}
+impl hil::gpio::InterruptPin for GPIOPin {}
+impl hil::gpio::InterruptValuePin for GPIOPin {}
+
+impl hil::gpio::Configure for GPIOPin {
+    fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
+        let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
         match mode {
-            hil::gpio::InputMode::PullUp => {
-				sfsp.modify(SFSP::EPD::DisablePullDown + SFSP::EPUN::EnablePullUpEnableBothPullDownResistorAndPullUpResistorForRepeaterMode);
+            hil::gpio::FloatingState::PullUp => {
+                sfsp.modify(SFSP::EPD::DisablePullDown + SFSP::EPUN::EnablePullUpEnableBothPullDownResistorAndPullUpResistorForRepeaterMode);
             }
-            hil::gpio::InputMode::PullDown => {
-				sfsp.modify(SFSP::EPUN::DisablePullUp + SFSP::EPD::EnablePullDownEnableBothPullDownResistorAndPullUpResistorForRepeaterMode);
+            hil::gpio::FloatingState::PullDown => {
+                sfsp.modify(SFSP::EPUN::DisablePullUp + SFSP::EPD::EnablePullDownEnableBothPullDownResistorAndPullUpResistorForRepeaterMode);
             }
-            hil::gpio::InputMode::PullNone => {
+            hil::gpio::FloatingState::PullNone => {
                 sfsp.modify(SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown);
             }
         }
     }
+    fn floating_state(&self) -> hil::gpio::FloatingState {
+        let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
+        let down = sfsp.matches_all(SFSP::EPD::EnablePullDownEnableBothPullDownResistorAndPullUpResistorForRepeaterMode);
+        let up = sfsp.matches_all(SFSP::EPUN::EnablePullUpEnableBothPullDownResistorAndPullUpResistorForRepeaterMode);
+        if down {
+            hil::gpio::FloatingState::PullDown
+        } else if up {
+            hil::gpio::FloatingState::PullUp
+        } else {
+            hil::gpio::FloatingState::PullNone
+        }
+    }
+    fn configuration(&self) -> hil::gpio::Configuration {
+        let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
+        let is_gpio = sfsp.matches_all(self.func + SFSP::ZIF::DisableInputGlitchFilter + SFSP::EZI::EnableInputBuffer); 
+        let gpio_dir = &GPIO_PORT_BASE.dir[self.gpio_port as usize];
+        let output_mode = FieldValue::<u32, ()>::new(0x1, self.gpio_pin as usize, 0x1);
+        let output = gpio_dir.matches_all(output_mode);
+        let input = !(output);
+        let config = (is_gpio, input, output);
+        match config {
+            (false, _, _) => hil::gpio::Configuration::Function,
+            (true, false, false) => hil::gpio::Configuration::Other,
+            (true, false, true) => hil::gpio::Configuration::Output,
+            (true, true, false) => hil::gpio::Configuration::Input,
+            (true, true, true) => hil::gpio::Configuration::InputOutput,
+        }
+    }
+    fn deactivate_to_low_power(&self) {
+        GPIOPin::disable(self);
+    }
+    fn make_output(&self) -> hil::gpio::Configuration {
+        self.enable();
+        GPIOPin::make_output(self);
+        hil::gpio::Configuration::Output
+    }
+
+    fn make_input(&self) -> hil::gpio::Configuration {
+        self.enable();
+        GPIOPin::make_input(self);
+        hil::gpio::Configuration::Input
+    }
+    fn disable_output(&self) -> hil::gpio::Configuration {
+        // Disable output for this chip by making it an input
+        self.make_input();
+        self.configuration()
+    }
+
+    fn disable_input(&self) -> hil::gpio::Configuration {
+        //no-op
+        self.configuration()
+    }
 
 }
 
-impl hil::gpio::Pin for GPIOPin {
-    fn disable(&self) {
-        GPIOPin::disable(self);
-    }
-
-    fn make_output(&self) {
-        self.enable();
-        GPIOPin::make_output(self);
-    }
-
-    fn make_input(&self) {
-        self.enable();
-        GPIOPin::make_input(self);
-    }
-
+impl hil::gpio::Input for GPIOPin {
     fn read(&self) -> bool {
         GPIOPin::read(self)
     }
+}
 
-    fn toggle(&self) {
-        GPIOPin::toggle(self);
+impl hil::gpio::Output for GPIOPin {
+    fn toggle(&self) -> bool {
+        GPIOPin::toggle(self)
     }
 
     fn set(&self) {
@@ -555,19 +601,62 @@ impl hil::gpio::Pin for GPIOPin {
     fn clear(&self) {
         GPIOPin::clear(self);
     }
+}
 
-    fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
-        let mode_bits = match mode {
-            hil::gpio::InterruptMode::EitherEdge => 0b00,
-            hil::gpio::InterruptMode::RisingEdge => 0b01,
-            hil::gpio::InterruptMode::FallingEdge => 0b10,
+/**
+ * Interrupts are not implemented, but they are required 
+ * to be able to implement GPIO capsule
+ */
+impl hil::gpio::Interrupt for GPIOPin {
+    fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
+/*        let mode_bits = match mode {
+            hil::gpio::InterruptEdge::EitherEdge => 0b00,
+            hil::gpio::InterruptEdge::RisingEdge => 0b01,
+            hil::gpio::InterruptEdge::FallingEdge => 0b10,
         };
-        self.client_data.set(client_data);
-        /*GPIOPin::set_interrupt_mode(self, mode_bits);
+        GPIOPin::set_interrupt_mode(self, mode_bits);
         GPIOPin::enable_interrupt(self);*/
     }
 
-    fn disable_interrupt(&self) {
-        //GPIOPin::disable_interrupt(self);
+    fn disable_interrupts(&self) {
+//        GPIOPin::disable_interrupt(self);
+    }
+
+    fn set_client(&self, client: &'static dyn hil::gpio::Client) {
+//        GPIOPin::set_client(self, client);
+    }
+
+    fn is_pending(&self) -> bool {
+//        GPIOPin::is_pending(self)
+        false
+    }
+}
+
+impl hil::gpio::InterruptWithValue for GPIOPin {
+    fn set_value(&self, value: u32) {
+        //self.value.set(value);
+    }
+
+    fn value(&self) -> u32 {
+        //self.value.get()
+        0
+    }
+
+    fn set_client(&self, client: &'static dyn hil::gpio::ClientWithValue) {
+        //self.client.replace(client);
+    }
+
+    fn is_pending(&self) -> bool {
+        //self.source.is_pending()
+        false
+    }
+
+    fn enable_interrupts(&self, edge: hil::gpio::InterruptEdge) -> ReturnCode {
+        //self.source.enable_interrupts(edge);
+        ReturnCode::SUCCESS
+    }
+
+    fn disable_interrupts(&self) {
+        //self.source.disable_interrupts();
     }
 }

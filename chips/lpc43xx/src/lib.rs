@@ -1,4 +1,4 @@
-#![feature(asm, concat_idents, const_fn, try_from)]
+#![feature(asm, concat_idents, const_fn)]
 #![no_std]
 #![crate_name = "lpc43xx"]
 #![crate_type = "rlib"]
