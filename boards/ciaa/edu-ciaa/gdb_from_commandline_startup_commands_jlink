@@ -1,0 +1,6 @@
+layout split
+set mem inaccessible-by-default off
+target remote localhost:2331
+#monitor arm semihosting disable Not supported in jlink
+monitor reset # init is NOT supported and doesn't return an error when you use it!
+monitor halt
