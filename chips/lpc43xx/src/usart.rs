@@ -591,17 +591,6 @@ impl<'a> Usart<'a> {
             .write(FDR::MULVAL.val(sm) + FDR::DIVADDVAL.val(sd));
         /* Return actual baud rate */
         let result = (pclk >> 4) * sm / (sdiv * (sm + sd));
-        //do nothing with the result. but allkow us to debug it
-        unsafe {
-            asm!(
-            "mov $0, $0
-            bkpt #1"
-            :                                          // outputs
-            :  "r"(result)                             // inputs
-            :                                          // clobbers
-            :                                          // no options
-            );
-        }
         result
     }
     pub fn put_byte(&self, some_byte: u8) {

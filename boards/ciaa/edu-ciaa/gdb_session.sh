@@ -12,7 +12,12 @@ trap "kill 0" EXIT
 
 ## JLink allows us to properly debug line by line!!!!!!!!!!
 ### Start server from /opt/SEGGER/JLink/JLinkGDBServerExe
-/opt/SEGGER/JLink/JLinkGDBServerCLExe -device Cortex-M4 -endian little -if SWD -speed auto -LocalhostOnly 1 >> /dev/null 2>&1 &
+# execdbg help us unwind the stack trace when used with a custom hardware fault handler
+# specially for this purpose.
+# make sure these two are in the asm of the handler. in this order. 10 can be any number. 
+# bkpt 10
+# bx lr
+/opt/SEGGER/JLink/JLinkGDBServerCLExe -device Cortex-M4 -endian little -if SWD -speed auto -LocalhostOnly 1 -execdbg >> /dev/null 2>&1 &
 arm-none-eabi-gdb --tui target/thumbv7em-none-eabi/release/edu-ciaa -x gdb_from_commandline_startup_commands_jlink
 
 kill $(jobs -p)

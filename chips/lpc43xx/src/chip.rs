@@ -30,6 +30,9 @@ impl Chip for Lpc43xx {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
                         _ => {
+                            // This handler should work with JLink GDB to unwind the stack trace
+                            asm!("bkpt 10
+                            bx lr"::::);
                             panic!("unhandled interrupt {}", interrupt);
                         }
                     }
