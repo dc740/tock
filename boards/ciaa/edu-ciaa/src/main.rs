@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(panic_info_message)]
 //#![deny(missing_docs)]
 #![feature(asm)]
 
@@ -77,7 +78,7 @@ pub unsafe fn reset_handler() {
     lpc43xx::cgu::board_setup_clocking(lpc43xx::cgu::BASE_CLK::CLK_SEL::CrystalOscillator, lpc43xx::cgu::MAX_CLOCK_FREQ, true);
     lpc43xx::creg::enable_32khz_1khz_osc();
     lpc43xx::creg::enable_creg6_rmii_mode();
-    
+    lpc43xx::ritimer::disable_rit(); //TODO find why this is enabled at all
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let button = ButtonComponent::new(board_kernel).finalize(());

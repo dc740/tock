@@ -31,8 +31,16 @@ impl Chip for Lpc43xx {
                     match interrupt {
                         _ => {
                             // This handler should work with JLink GDB to unwind the stack trace
-                            asm!("bkpt 10
-                            bx lr"::::);
+//                            asm!("bkpt #10
+//                            bx lr"::::);
+                            asm!(
+    "mov r0, $0
+    bkpt #1"
+    :                                          // outputs
+    :  "r"(interrupt)                          // inputs
+    :  "r0"                                        // clobbers
+    :                                          // options
+    );
                             panic!("unhandled interrupt {}", interrupt);
                         }
                     }

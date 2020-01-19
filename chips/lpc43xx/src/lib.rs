@@ -40,10 +40,10 @@ pub mod lcd;
 pub mod mcpwm;
 pub mod pmc;
 pub mod qei;
-pub mod regfile;
+pub mod regfile;*/
 pub mod rgu;
 pub mod ritimer;
-pub mod rtc;
+/*pub mod rtc;
 pub mod sct;*/
 pub mod scu;
 /*pub mod sdmmc;
@@ -63,6 +63,9 @@ use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
     // IPSR[8:0] holds the currently active interrupt
+    asm!("bkpt 10
+                            bx lr"::::);
+    
     asm!(
     "mrs    r0, ipsr                    "
     : "={r0}"(interrupt_number)

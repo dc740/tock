@@ -47,3 +47,7 @@ CTRL [
 ];
 const RITIMER_BASE: StaticRef<RitimerRegisters> =
     unsafe { StaticRef::new(0x400C0000 as *const RitimerRegisters) };
+
+pub fn disable_rit() {
+    RITIMER_BASE.ctrl.modify(CTRL::RITEN::TimerDisabled);
+}
