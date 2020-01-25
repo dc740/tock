@@ -21,6 +21,7 @@ mod ciaa_components;
 use ciaa_components::button::ButtonComponent;
 use ciaa_components::gpio::GpioComponent;
 use ciaa_components::led::LedComponent;
+use kernel::hil::Controller;
 use kernel::component::Component;
 use kernel::hil;
 
