@@ -3,7 +3,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ReturnCode;
-use {ccu1, scu};
+use crate::{ccu1, scu};
 
 /// USART0_2_3
 #[repr(C)]

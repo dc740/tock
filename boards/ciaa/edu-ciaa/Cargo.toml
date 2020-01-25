@@ -3,6 +3,7 @@ name = "edu-ciaa"
 version = "0.1.0"
 authors = ["Emilio Moretti <emilio.moretti@gmail.com>"]
 build = "build.rs"
+edition = "2018"
 
 [profile.dev]
 panic = "abort"
@@ -17,6 +18,7 @@ opt-level = "z"
 debug = true
 
 [dependencies]
+components = { path = "../../components" }
 cortexm4 = { path = "../../../arch/cortex-m4" }
 capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }

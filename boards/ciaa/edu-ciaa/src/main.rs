@@ -3,6 +3,7 @@
 #![feature(panic_info_message)]
 //#![deny(missing_docs)]
 #![feature(asm)]
+#![feature(in_band_lifetimes)]
 
 extern crate capsules;
 #[allow(unused_imports)]
@@ -13,14 +14,13 @@ extern crate lpc43xx;
 
 use kernel::capabilities;
 
-mod components;
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-
-use components::button::ButtonComponent;
-use components::gpio::GpioComponent;
-use components::led::LedComponent;
+mod ciaa_components;
+use ciaa_components::button::ButtonComponent;
+use ciaa_components::gpio::GpioComponent;
+use ciaa_components::led::LedComponent;
 use kernel::component::Component;
 use kernel::hil;
 
@@ -154,7 +154,7 @@ pub unsafe fn reset_handler() {
     let atimer = &lpc43xx::atimer::ATIMER;
     let mux_alarm = static_init!(
         MuxAlarm<'static, lpc43xx::atimer::AlarmTimer>,
-        MuxAlarm::new(&lpc43xx::atime::ATIMER)
+        MuxAlarm::new(&lpc43xx::atimer::ATIMER)
     );
     atimer.configure(mux_alarm);
     let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)

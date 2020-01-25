@@ -2,6 +2,7 @@
 name = "lpc43xx"
 version = "0.1.0"
 authors = ["Emilio Moretti <emilio.moretti@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }

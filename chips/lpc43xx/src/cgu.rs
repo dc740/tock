@@ -1,7 +1,7 @@
 use cortexm4::support;
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields, Field, FieldValue, RegisterLongName};
-use creg::is_creg6_rmii_mode;
+use crate::creg::is_creg6_rmii_mode;
 
     /// Clock Generation Unit (CGU)
 #[repr(C)]

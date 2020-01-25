@@ -126,7 +126,7 @@ impl Time for AlarmTimer<'a> {
     }
 
     fn max_tics(&self) -> u32 {
-        core::u16::MAX
+        core::u16::MAX.into()
     }
 }
 

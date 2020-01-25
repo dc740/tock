@@ -2,7 +2,7 @@
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields};
 
-use cgu;
+use crate::cgu;
     /// Clock Control Unit (CCU)
 #[repr(C)]
 struct Ccu1Registers {

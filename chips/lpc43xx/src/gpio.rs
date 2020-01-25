@@ -7,7 +7,7 @@ use kernel::hil;
 use kernel::ReturnCode;
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadWrite, WriteOnly, FieldValue};
-use scu::{SCU_BASE, SFSP};
+use crate::scu::{SCU_BASE, SFSP};
 
 /// GPIO port register
 #[repr(C)]

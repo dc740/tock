@@ -1,7 +1,8 @@
-#![feature(asm, concat_idents, const_fn)]
-#![no_std]
 #![crate_name = "lpc43xx"]
 #![crate_type = "rlib"]
+#![feature(asm, concat_idents, const_fn, core_intrinsics)]
+#![feature(in_band_lifetimes)]
+#![no_std]
 
 extern crate cortexm4;
 #[allow(unused_imports)]
