@@ -15,12 +15,12 @@ extern crate kernel;
 pub mod chip;
 // I commented out the files that have invalid definitions from svd2regs.py
 /*pub mod adchs;
-pub mod adc;
+pub mod adc;*/
 pub mod atimer;
-pub mod c_can0;
+/*pub mod c_can0;
 pub mod c_can1;*/
-pub mod ccu1;/*
-pub mod ccu2;*/
+pub mod ccu1;
+/*pub mod ccu2;*/
 pub mod cgu;
 pub mod creg;
 /*pub mod dac;

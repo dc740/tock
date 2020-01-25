@@ -1,5 +1,15 @@
 layout split
-set mem inaccessible-by-default off
+set mem inaccessible-by-default on
+#hardware provided addresses
+mem 0x00000000 0x1a000000 ro nocache
+mem 0x1a000000 0x1a010000 ro nocache
+mem 0x1a010000 0x1a080000 ro nocache
+mem 0x1a080000 0x1b000000 ro nocache
+mem 0x1b000000 0x1b010000 ro nocache
+mem 0x1b010000 0x1b080000 ro nocache
+mem 0x1b080000 0x100000000 ro nocache
+# RAM:
+mem 0x0000000010000000 0x0000000010008000 rw nocache
 target remote localhost:3333
 monitor arm semihosting disable
 #monitor reset init
