@@ -36,19 +36,19 @@ impl Chip for Lpc43xx {
 //                            asm!("bkpt #10
 //                            bx lr"::::);
                             asm!(
-    "mov r0, $0
-    bkpt #1"
-    :                                          // outputs
-    :  "r"(interrupt)                          // inputs
-    :  "r0"                                        // clobbers
-    :                                          // options
-    );
+                                "mov r0, $0
+                                bkpt #1"
+                                :                                          // outputs
+                                :  "r"(interrupt)                          // inputs
+                                :  "r0"                                        // clobbers
+                                :                                          // options
+                                );
                             panic!("unhandled interrupt {}", interrupt);
                         }
                     }
                     
                     let n = cortexm4::nvic::Nvic::new(interrupt);
-                    //n.clear_pending();
+                    n.clear_pending();
                     n.enable();
                 } else {
                     break;
