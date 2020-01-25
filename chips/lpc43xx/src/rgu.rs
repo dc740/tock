@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
     /// Reset Generation Unit (RGU)
 #[repr(C)]
 struct RguRegisters {

@@ -1,7 +1,8 @@
 //! Interrupt mapping and DMA channel setup.
 use cortexm4;
 use kernel::Chip;
-
+use crate::atimer;
+use crate::nvic;
 
 pub struct Lpc43xx {
     mpu: cortexm4::mpu::MPU,
@@ -29,6 +30,7 @@ impl Chip for Lpc43xx {
             loop {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
+                        nvic::ATIMER => atimer::ATIMER.handle_interrupt(),
                         _ => {
                             // This handler should work with JLink GDB to unwind the stack trace
 //                            asm!("bkpt #10

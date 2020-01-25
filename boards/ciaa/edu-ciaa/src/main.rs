@@ -14,12 +14,17 @@ extern crate lpc43xx;
 use kernel::capabilities;
 
 mod components;
+use capsules::alarm::AlarmDriver;
 use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+
 use components::button::ButtonComponent;
 use components::gpio::GpioComponent;
 use components::led::LedComponent;
 use kernel::component::Component;
 use kernel::hil;
+
+use components::alarm::AlarmDriverComponent;
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -46,6 +51,7 @@ pub struct EduCiaaNXP {
     gpio: &'static capsules::gpio::GPIO<'static>,
     led: &'static capsules::led::LED<'static>,
     ipc: kernel::ipc::IPC,
+    alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, lpc43xx::atimer::AlarmTimer<'static>>>,
 }
 
 impl kernel::Platform for EduCiaaNXP {
@@ -58,6 +64,7 @@ impl kernel::Platform for EduCiaaNXP {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -143,6 +150,16 @@ pub unsafe fn reset_handler() {
     hil::uart::Transmit::set_transmit_client(console_uart, console);
     hil::uart::Receive::set_receive_client(console_uart, console);
     
+    // # TIMER
+    let atimer = &lpc43xx::atimer::ATIMER;
+    let mux_alarm = static_init!(
+        MuxAlarm<'static, lpc43xx::atimer::AlarmTimer>,
+        MuxAlarm::new(&lpc43xx::atime::ATIMER)
+    );
+    atimer.configure(mux_alarm);
+    let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
+        .finalize(components::alarm_component_helper!(lpc43xx::atimer::AlarmTimer));
+
     
     let platform = EduCiaaNXP {
             console: console,
@@ -150,6 +167,7 @@ pub unsafe fn reset_handler() {
             gpio: gpio,
             led: led,
             ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+            alarm: alarm,
         };
     let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
 

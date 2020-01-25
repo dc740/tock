@@ -36,8 +36,9 @@ pub mod gpio_pin_int;*/
 pub mod gpio;
 /*pub mod i2c;
 pub mod i2s;
-pub mod lcd;
-pub mod mcpwm;
+pub mod lcd;*/
+pub mod nvic;
+/*pub mod mcpwm;
 pub mod pmc;
 pub mod qei;
 pub mod regfile;*/
