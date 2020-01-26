@@ -37,7 +37,7 @@ You can program an application via OpenOCD with `tockloader`:
 ```bash
 $ cd libtock-c/examples/<app>
 $ make
-$ tockloader  install blink --openocd --arch cortex-m4 --board edu-ciaa --openocd-board ftdi_lpc4337.cfg -a 0x000000001a040000 --openocd-options "noreset" --page-size 512
+$ tockloader  install blink  --openocd --arch cortex-m4 --board edu-ciaa --openocd-board ftdi_lpc4337.cfg -a 0x000000001a040000 --openocd-options "noreset" --page-size 512 --openocd-commands "program=flash write_image erase {{binary}} {address:#x};verify_image {{binary}} {address:#x};"
 ```
 
 If you run this in the application folder, `tockloader` will automatically
