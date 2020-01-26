@@ -25,7 +25,7 @@ pub emcdelayclk: ReadWrite<u32>,
 /// SD/MMC sample and drive delay register
 //pub sddelay: ReadWrite<u32>,
 pub _reserved3: [u32; 63],
-/// Pin interrupt select register for pin interrupts 0 to 3.
+/// Pin interrupt select register for pin interrupts 0 to 3 index 0, 4 to 7 index 1.
 pub pintsel: [ReadWrite<u32>; 2],
 }
 
@@ -494,8 +494,17 @@ pub const SCU_BASE: StaticRef<ScuRegisters> =
     unsafe { StaticRef::new(0x40086000 as *const ScuRegisters) };
 
 pub fn init_uart2_pinfunc() {
-   // Port 6, pin 4 - UART0_TXD. The DisablePullDown was not necesary, but lets make it very explicit for future generations
-   SCU_BASE.sfsp[6][4].write(SFSP::MODE::Function2 + SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown);
-   // P2.1 : UART0_RXD
-   SCU_BASE.sfsp[2][1].write(SFSP::MODE::Function1 + SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown + SFSP::EZI::EnableInputBuffer + SFSP::ZIF::DisableInputGlitchFilter);
+    //UART2_USB_TXD
+   SCU_BASE.sfsp[7][1].write(SFSP::MODE::Function6 + SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown);
+   
+   // UART2_USB_RXD
+   SCU_BASE.sfsp[7][2].write(SFSP::MODE::Function6 + SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown + SFSP::EZI::EnableInputBuffer + SFSP::ZIF::DisableInputGlitchFilter);
+}
+
+pub fn set_gpio_int_pintsel_0( settings: FieldValue<u32, PINTSEL0::Register>) {
+   SCU_BASE.pintsel[0].set(settings);
+}
+
+pub fn set_gpio_int_pintsel_1( settings: FieldValue<u32, PINTSEL1::Register>) {
+   SCU_BASE.pintsel[1].set(settings);
 }
