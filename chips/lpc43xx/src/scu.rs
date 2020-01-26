@@ -1,6 +1,7 @@
 
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadWrite, register_bitfields};
+
     /// System Control Unit (SCU) I/O configuration
 /// FIOXME: edu ciaa implementation is not the same as the documentation
 #[repr(C)]
@@ -501,10 +502,9 @@ pub fn init_uart2_pinfunc() {
    SCU_BASE.sfsp[7][2].write(SFSP::MODE::Function6 + SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown + SFSP::EZI::EnableInputBuffer + SFSP::ZIF::DisableInputGlitchFilter);
 }
 
-pub fn set_gpio_int_pintsel_0( settings: FieldValue<u32, PINTSEL0::Register>) {
-   SCU_BASE.pintsel[0].set(settings);
-}
-
-pub fn set_gpio_int_pintsel_1( settings: FieldValue<u32, PINTSEL1::Register>) {
-   SCU_BASE.pintsel[1].set(settings);
+pub fn set_gpio_int_pintsel( interrupt_port_select: u8, gpio_port:u8, gpio_pin:u8) {
+   let of:i32 = ((interrupt_port_select & 3) << 3).into();
+   let val:u32 = ((((gpio_port & 0x7) << 5) | (gpio_pin & 0x1F)) << of).into();
+   let ix:usize = (interrupt_port_select >> 2) as usize;
+   SCU_BASE.pintsel[ix].set((SCU_BASE.pintsel[ix].get() & !(0xFF << of)) | val);
 }
