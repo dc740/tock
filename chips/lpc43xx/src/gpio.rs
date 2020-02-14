@@ -496,6 +496,49 @@ impl GPIOPin {
         let b = &GPIO_PORT_BASE.b[self.gpio_port as usize][self.gpio_pin as usize];
 		b.set(0)
     }
+    
+        /// Sets the interrupt mode registers. Interrupts may fire on the rising or
+    /// falling edge of the pin or on both.
+    ///
+    /// The mode is a two-bit value based on the mapping from section 23.7.13 of
+    /// the SAM4L datasheet (page 563):
+    ///
+    /// | `mode` value | Interrupt Mode |
+    /// | ------------ | -------------- |
+    /// | 0b00         | Pin change     |
+    /// | 0b01         | Rising edge    |
+    /// | 0b10         | Falling edge   |
+    ///
+    pub fn set_interrupt_mode(&self, mode: u8) {
+        // acá modificamos isel y pintsel. checkear enableGPIOIrq en el codigo de la edu ciaa
+        let port: &GpioRegisters = &*self.port;
+        if mode & 0b01 != 0 {
+            port.imr0.set.set(self.pin_mask);
+        } else {
+            port.imr0.clear.set(self.pin_mask);
+        }
+
+        if mode & 0b10 != 0 {
+            port.imr1.set.set(self.pin_mask);
+        } else {
+            port.imr1.clear.set(self.pin_mask);
+        }
+    }
+
+    pub fn enable_interrupt(&self) {
+        // acá modificamos ienr
+    }
+
+    pub fn disable_interrupt(&self) {
+        // acá modificamos ienr
+    }
+
+    pub fn handle_interrupt(&self) {
+        self.client.map(|client| {
+            client.fired();
+        });
+    }
+
 }
 
 impl hil::Controller for GPIOPin {
@@ -511,7 +554,6 @@ impl hil::Controller for GPIOPin {
 
 impl hil::gpio::Pin for GPIOPin {}
 impl hil::gpio::InterruptPin for GPIOPin {}
-impl hil::gpio::InterruptValuePin for GPIOPin {}
 
 impl hil::gpio::Configure for GPIOPin {
     fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
@@ -609,54 +651,24 @@ impl hil::gpio::Output for GPIOPin {
  */
 impl hil::gpio::Interrupt for GPIOPin {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
-/*        let mode_bits = match mode {
+        let mode_bits = match mode {
             hil::gpio::InterruptEdge::EitherEdge => 0b00,
             hil::gpio::InterruptEdge::RisingEdge => 0b01,
             hil::gpio::InterruptEdge::FallingEdge => 0b10,
         };
         GPIOPin::set_interrupt_mode(self, mode_bits);
-        GPIOPin::enable_interrupt(self);*/
+        GPIOPin::enable_interrupt(self);
     }
 
     fn disable_interrupts(&self) {
-//        GPIOPin::disable_interrupt(self);
+        GPIOPin::disable_interrupt(self);
     }
 
     fn set_client(&self, client: &'static dyn hil::gpio::Client) {
-//        GPIOPin::set_client(self, client);
+        GPIOPin::set_client(self, client);
     }
 
     fn is_pending(&self) -> bool {
-//        GPIOPin::is_pending(self)
-        false
-    }
-}
-
-impl hil::gpio::InterruptWithValue for GPIOPin {
-    fn set_value(&self, value: u32) {
-        //self.value.set(value);
-    }
-
-    fn value(&self) -> u32 {
-        //self.value.get()
-        0
-    }
-
-    fn set_client(&self, client: &'static dyn hil::gpio::ClientWithValue) {
-        //self.client.replace(client);
-    }
-
-    fn is_pending(&self) -> bool {
-        //self.source.is_pending()
-        false
-    }
-
-    fn enable_interrupts(&self, edge: hil::gpio::InterruptEdge) -> ReturnCode {
-        //self.source.enable_interrupts(edge);
-        ReturnCode::SUCCESS
-    }
-
-    fn disable_interrupts(&self) {
-        //self.source.disable_interrupts();
+        GPIOPin::is_pending(self)
     }
 }
