@@ -501,3 +501,23 @@ pub fn init_uart2_pinfunc() {
    SCU_BASE.sfsp[7][2].write(SFSP::MODE::Function6 + SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown + SFSP::EZI::EnableInputBuffer + SFSP::ZIF::DisableInputGlitchFilter);
 }
 
+/**
+ * @brief   GPIO Interrupt Pin Select ported from lpcopen
+ * @param   PortSel : GPIO PINTSEL interrupt, should be: 0 to 7
+ * @param   PortNum : GPIO port number interrupt, should be: 0 to 7
+ * @param   PinNum  : GPIO pin number Interrupt , should be: 0 to 31
+ * @return  Nothing
+ */
+pub fn SCU_GPIOIntPinSel(u8 PortSel, u8 PortNum, u8 PinNum)
+{
+    let i32 of = (PortSel & 3) << 3;
+    let u32 val = (((PortNum & 0x7) << 5) | (PinNum & 0x1F)) << of;
+    LPC_SCU->PINTSEL[(PortSel >> 2) as usize] = (LPC_SCU->PINTSEL[(PortSel >> 2) as usize] & ~(0xFF << of)) | val;
+}
+
+/**
+ * Search for an available interrupt channel
+ */
+pub fn get_free_gpioint_channel(){
+    
+}

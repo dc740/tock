@@ -11,7 +11,6 @@
 //! ```
 
 // Author: Emilio Moretti <emilio.moretti@gmail.com>
-// Last modified: 1/30/2019
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
