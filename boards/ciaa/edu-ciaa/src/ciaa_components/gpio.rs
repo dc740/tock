@@ -99,7 +99,7 @@ impl Component for GpioComponent {
             gpio::GPIO<'static>,
             gpio::GPIO::new(&gpio_pins[..], self.board_kernel.create_grant(&grant_cap))
         );
-        for pin in gpio_pins.iter() {  // we haven't implemented the interrupts
+        for pin in gpio_pins.iter() { 
             pin.set_client(gpio);
         }
 

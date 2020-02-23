@@ -390,6 +390,7 @@ pub struct GPIOPin {
 	gpio_pin: u32,
     client_data: Cell<usize>,
     client: OptionalCell<&'static dyn hil::gpio::Client>,
+    assigned_interrupt: u8,
 }
 
 impl GPIOPin {
@@ -407,6 +408,7 @@ impl GPIOPin {
 			gpio_pin,
             client_data: Cell::new(0),
             client: OptionalCell::empty(),
+            assigned_interrupt:8,
         }
     }
 
@@ -523,14 +525,41 @@ impl GPIOPin {
         } else {
             port.imr1.clear.set(self.pin_mask);
         }
+        
+       /*
+        * Select irq channel to handle a GPIO interrupt, using its port and pin to specify it
+        * From EduCiaa pin out spec: GPIO1[9] -> port 1 and pin 9
+        */
+       Chip_SCU_GPIOIntPinSel(irqChannel , port, pin);
+       /* Clear actual configured interrupt status */
+       Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
+       /* Set edge interrupt mode */
+       Chip_PININT_SetPinModeEdge(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
+    
+       if ( edge == RAISING_EDGE) {
+          /* Enable high edge gpio interrupt */
+          Chip_PININT_EnableIntHigh(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
+       } else if ( edge == FALLING_EDGE) {
+          /* Enable low edge gpio interrupt */
+          Chip_PININT_EnableIntLow(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
+       } else {
+          /* Enable high and low edge */
+          Chip_PININT_EnableIntHigh(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
+          Chip_PININT_EnableIntLow(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
+       }
     }
 
     pub fn enable_interrupt(&self) {
-        // acá modificamos ienr
+        self.assigned_interrupt = get_free_gpio_int();
+        let n = cortexm4::nvic::Nvic::new(PIN_INT0 + self.assigned_interrupt);
+        n.clear_pending();
+        n.enable();
     }
 
     pub fn disable_interrupt(&self) {
-        // acá modificamos ienr
+        let n = cortexm4::nvic::Nvic::new(PIN_INT0 + self.assigned_interrupt);
+        n.clear_pending();
+        n.disable();
     }
 
     pub fn handle_interrupt(&self) {

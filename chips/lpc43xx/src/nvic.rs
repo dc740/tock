@@ -54,3 +54,24 @@ pub const WWDT: u32 = 49; //65 0x104 -
 pub const M0SUB: u32 = 50; //66 0x108 TXE instruction from the M0 subsystem core
 pub const C_CAN0: u32 = 51; //67 0x10C -
 pub const QEI: u32 = 52; //68 0x110 -
+
+// NVIC base address (redefined. it's the same for all cortex-m)
+const NVIC_BASE_ADDRESS: StaticRef<NvicRegisters> =
+    unsafe { StaticRef::new(0xe000e100 as *const NvicRegisters) };
+    
+/// Get the index (0-7) for the lowest number unused GPIO interrupt, or `None` if none
+/// are available.
+pub fn get_free_gpio_int() -> Option<u32> {
+    let nvic: StaticRef<NvicRegisters> = cortexm4::nvic::NVIC_BASE_ADDRESS;
+
+    let iser =  nvic[4];
+
+    // If there are any high bits there is a pending interrupt
+    if iser != 0 {
+        // trailing_zeros == index of first high bit
+        let bit = iser.trailing_zeros();
+        return Some(bit);
+    }
+
+    None
+}
