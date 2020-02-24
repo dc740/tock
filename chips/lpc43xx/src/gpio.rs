@@ -7,7 +7,9 @@ use kernel::hil;
 use kernel::ReturnCode;
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadWrite, WriteOnly, FieldValue};
-use crate::scu::{SCU_BASE, SFSP};
+use crate::scu::{SCU_BASE, SFSP, SCU_GPIOIntPinSel};
+use crate::gpio_pin_int::{ PININT_ClearIntStatus, PININT_SetPinModeEdge, PININT_EnableIntHigh, PININT_EnableIntLow};
+use crate::nvic::{get_free_gpio_int, PIN_INT0};
 
 /// GPIO port register
 #[repr(C)]
@@ -517,22 +519,22 @@ impl GPIOPin {
          * Select irq channel to handle a GPIO interrupt, using its port and pin to specify it
          * From EduCiaa pin out spec: GPIO1[9] -> port 1 and pin 9
          */
-        SCU_GPIOIntPinSel(self.assigned_interrupt , gpio_port, gpio_pin);
+        SCU_GPIOIntPinSel(self.assigned_interrupt , self.gpio_port, self.gpio_pin);
         /* Clear actual configured interrupt status */
-        PININT_ClearIntStatus(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt));
+        PININT_ClearIntStatus(self.assigned_interrupt);
         /* Set edge interrupt mode */
-        PININT_SetPinModeEdge(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt);
+        PININT_SetPinModeEdge(self.assigned_interrupt);
     
         if mode == 0b01 { //rising edge
           /* Enable high edge gpio interrupt */
-           PININT_EnableIntHigh(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt);
+           PININT_EnableIntHigh(self.assigned_interrupt);
         } else if mode == 0b10 { //falling edge
           /* Enable low edge gpio interrupt */
-           PININT_EnableIntLow(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt);
+           PININT_EnableIntLow(self.assigned_interrupt);
         } else {
           /* Enable high and low edge */
-           PININT_EnableIntHigh(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt);
-           PININT_EnableIntLow(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt);
+           PININT_EnableIntHigh(self.assigned_interrupt);
+           PININT_EnableIntLow(self.assigned_interrupt);
         }
     }
 

@@ -508,16 +508,9 @@ pub fn init_uart2_pinfunc() {
  * @param   PinNum  : GPIO pin number Interrupt , should be: 0 to 31
  * @return  Nothing
  */
-pub fn SCU_GPIOIntPinSel(u8 PortSel, u8 PortNum, u8 PinNum)
+pub fn SCU_GPIOIntPinSel(PortSel: u8, PortNum: u8, PinNum: u8)
 {
-    let i32 of = (PortSel & 3) << 3;
-    let u32 val = (((PortNum & 0x7) << 5) | (PinNum & 0x1F)) << of;
-    LPC_SCU->PINTSEL[(PortSel >> 2) as usize] = (LPC_SCU->PINTSEL[(PortSel >> 2) as usize] & ~(0xFF << of)) | val;
-}
-
-/**
- * Search for an available interrupt channel
- */
-pub fn get_free_gpioint_channel(){
-    
+    let of : i32 = (PortSel & 3) << 3;
+    let val : u32 = (((PortNum & 0x7) << 5) | (PinNum & 0x1F)) << of;
+    SCU_BASE.pintsel[(PortSel >> 2) as usize] = (SCU_BASE.pintsel[(PortSel >> 2) as usize] & !(0xFF << of)) | val;
 }

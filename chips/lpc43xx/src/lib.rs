@@ -32,8 +32,8 @@ pub mod eventrouter;
 pub mod gima;
 pub mod gpdma;
 pub mod gpio_group_int0;
-pub mod gpio_group_int1;
-pub mod gpio_pin_int;*/
+pub mod gpio_group_int1;*/
+pub mod gpio_pin_int;
 pub mod gpio;
 /*pub mod i2c;
 pub mod i2s;

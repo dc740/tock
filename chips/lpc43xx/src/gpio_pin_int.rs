@@ -1,6 +1,7 @@
 
 use kernel::common::StaticRef;
 use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::common::registers::FieldValue;
     /// GPIO pin interrupt
 #[repr(C)]
 struct Gpio_Pin_IntRegisters {
@@ -216,10 +217,10 @@ const GPIO_PIN_INT_BASE: StaticRef<Gpio_Pin_IntRegisters> =
  * @param   pins    : Pin interrupts to clear (ORed value of PININTCH*)
  * @return  Nothing
  */
-pub fn PININT_ClearIntStatus(u8 pin)
+pub fn PININT_ClearIntStatus(pin : u8)
 {
     let pin_edge_sensitive_clear = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
-    GPIO_PIN_INT_BASE.IST.modify(pin_edge_sensitive_clear);
+    GPIO_PIN_INT_BASE.ist.modify(pin_edge_sensitive_clear);
 }
 
 /**
@@ -228,10 +229,10 @@ pub fn PININT_ClearIntStatus(u8 pin)
  * @param   pins    : Pins to enable (ORed value of PININTCH*)
  * @return  Nothing
  */
-pub fn PININT_EnableIntLow(u8 pin)
+pub fn PININT_EnableIntLow(pin : u8)
 {
     let pin_enable = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
-    GPIO_PIN_INT_BASE.SIENF.modify(pin_enable);
+    GPIO_PIN_INT_BASE.sienf.modify(pin_enable);
 }
 
 /**
@@ -240,10 +241,10 @@ pub fn PININT_EnableIntLow(u8 pin)
  * @param   pins    : Pins to enable (ORed value of PININTCH*)
  * @return  Nothing
  */
-pub fn PININT_EnableIntHigh(u8 pin)
+pub fn PININT_EnableIntHigh(pin : u8)
 {
     let pin_enable = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
-    GPIO_PIN_INT_BASE.SIENR.modify(pin_enable);
+    GPIO_PIN_INT_BASE.sienr.modify(pin_enable);
 }
 
 /**
@@ -252,10 +253,10 @@ pub fn PININT_EnableIntHigh(u8 pin)
  * @param   pins    : Pins (ORed value of PININTCH*)
  * @return  Nothing
  */
-pub fn PININT_SetPinModeEdge(u8 pin)
+pub fn PININT_SetPinModeEdge(pin : u8)
 {
     let pin_clear = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x0);
-    GPIO_PIN_INT_BASE.ISEL.modify(pin_clear);
+    GPIO_PIN_INT_BASE.isel.modify(pin_clear);
 }
 
 /**
@@ -264,10 +265,10 @@ pub fn PININT_SetPinModeEdge(u8 pin)
  * @param   pins    : Pins (ORed value of PININTCH*)
  * @return  Nothing
  */
-pub fn PININT_SetPinModeLevel(u8 pin)
+pub fn PININT_SetPinModeLevel(pin : u8)
 {
     let pin_enable = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
-    GPIO_PIN_INT_BASE.ISEL.modify(pin_enable);
+    GPIO_PIN_INT_BASE.isel.modify(pin_enable);
 }
 
 
