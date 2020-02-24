@@ -414,7 +414,7 @@ impl GPIOPin {
         }
     }
 
-    pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
+    pub fn set_client(&self, client: &'static dyn hil::gpio::Client) {
         self.client.set(client);
     }
 
@@ -501,6 +501,9 @@ impl GPIOPin {
 		b.set(0)
     }
     
+    pub fn assign_interrupt_to_gpio(&mut self, interrupt:u8) {
+        self.assigned_interrupt = interrupt;
+    }
         /// Sets the interrupt mode registers. Interrupts may fire on the rising or
     /// falling edge of the pin or on both.
     ///
@@ -514,12 +517,11 @@ impl GPIOPin {
     /// | 0b10         | Falling edge   |
     ///
     pub fn set_interrupt_mode(&self, mode: u8) {
-        self.assigned_interrupt = get_free_gpio_int();
         /*
          * Select irq channel to handle a GPIO interrupt, using its port and pin to specify it
          * From EduCiaa pin out spec: GPIO1[9] -> port 1 and pin 9
          */
-        SCU_GPIOIntPinSel(self.assigned_interrupt , self.gpio_port, self.gpio_pin);
+        SCU_GPIOIntPinSel(self.assigned_interrupt , self.gpio_port as u8, self.gpio_pin as u8);
         /* Clear actual configured interrupt status */
         PININT_ClearIntStatus(self.assigned_interrupt);
         /* Set edge interrupt mode */
@@ -539,16 +541,19 @@ impl GPIOPin {
     }
 
     pub fn enable_interrupt(&self) {
-
-        let n = cortexm4::nvic::Nvic::new(PIN_INT0 + self.assigned_interrupt);
-        n.clear_pending();
-        n.enable();
+        unsafe {
+            let n = cortexm4::nvic::Nvic::new(PIN_INT0 + self.assigned_interrupt as u32);
+            n.clear_pending();
+            n.enable();
+        }
     }
 
     pub fn disable_interrupt(&self) {
-        let n = cortexm4::nvic::Nvic::new(PIN_INT0 + self.assigned_interrupt);
-        n.clear_pending();
-        n.disable();
+        unsafe {
+            let n = cortexm4::nvic::Nvic::new(PIN_INT0 + self.assigned_interrupt as u32);
+            n.clear_pending();
+            n.disable();
+        }
     }
 
     pub fn handle_interrupt(&self) {

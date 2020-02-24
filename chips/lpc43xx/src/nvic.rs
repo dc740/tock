@@ -1,4 +1,6 @@
 //! Named constants for NVIC ids, and nvic functions useful for EDU-CIAA only
+
+use kernel::common::cells::VolatileCell;
 use kernel::common::StaticRef;
 use cortexm4;
 
@@ -80,9 +82,9 @@ const NVIC_BASE_ADDRESS: StaticRef<NvicRegisters> =
 /// Get the index (0-7) for the lowest number unused GPIO interrupt, or `None` if none
 /// are available.
 pub fn get_free_gpio_int() -> Option<u32> {
-    let nvic: StaticRef<NvicRegisters> = cortexm4::nvic::NVIC_BASE_ADDRESS;
+    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
 
-    let iser =  nvic[4];
+    let iser =  nvic.iser[4].get();
 
     // If there are any high bits there is a pending interrupt
     if iser != 0 {

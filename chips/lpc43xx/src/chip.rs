@@ -31,6 +31,7 @@ impl Chip for Lpc43xx {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
                         nvic::ATIMER => atimer::ATIMER.handle_interrupt(),
+                        //TODO add map from GPIO buttons to interrupts (don't forget to assign an interrupt) and handle them here
                         _ => {
                             // This handler should work with JLink GDB to unwind the stack trace
 //                            asm!("bkpt #10

@@ -219,7 +219,7 @@ const GPIO_PIN_INT_BASE: StaticRef<Gpio_Pin_IntRegisters> =
  */
 pub fn PININT_ClearIntStatus(pin : u8)
 {
-    let pin_edge_sensitive_clear = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
+    let pin_edge_sensitive_clear = FieldValue::<u32, IST::Register>::new(0x1, pin as usize, 0x1);
     GPIO_PIN_INT_BASE.ist.modify(pin_edge_sensitive_clear);
 }
 
@@ -231,8 +231,7 @@ pub fn PININT_ClearIntStatus(pin : u8)
  */
 pub fn PININT_EnableIntLow(pin : u8)
 {
-    let pin_enable = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
-    GPIO_PIN_INT_BASE.sienf.modify(pin_enable);
+    GPIO_PIN_INT_BASE.sienf.set(1<<pin);
 }
 
 /**
@@ -243,8 +242,7 @@ pub fn PININT_EnableIntLow(pin : u8)
  */
 pub fn PININT_EnableIntHigh(pin : u8)
 {
-    let pin_enable = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
-    GPIO_PIN_INT_BASE.sienr.modify(pin_enable);
+    GPIO_PIN_INT_BASE.sienr.set(1<<pin);
 }
 
 /**
@@ -255,7 +253,7 @@ pub fn PININT_EnableIntHigh(pin : u8)
  */
 pub fn PININT_SetPinModeEdge(pin : u8)
 {
-    let pin_clear = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x0);
+    let pin_clear = FieldValue::<u32, ISEL::Register>::new(0x1, pin as usize, 0x0);
     GPIO_PIN_INT_BASE.isel.modify(pin_clear);
 }
 
@@ -267,7 +265,7 @@ pub fn PININT_SetPinModeEdge(pin : u8)
  */
 pub fn PININT_SetPinModeLevel(pin : u8)
 {
-    let pin_enable = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
+    let pin_enable = FieldValue::<u32, ISEL::Register>::new(0x1, pin as usize, 0x1);
     GPIO_PIN_INT_BASE.isel.modify(pin_enable);
 }
 

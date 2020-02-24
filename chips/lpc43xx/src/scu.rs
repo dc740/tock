@@ -510,7 +510,7 @@ pub fn init_uart2_pinfunc() {
  */
 pub fn SCU_GPIOIntPinSel(PortSel: u8, PortNum: u8, PinNum: u8)
 {
-    let of : i32 = (PortSel & 3) << 3;
-    let val : u32 = (((PortNum & 0x7) << 5) | (PinNum & 0x1F)) << of;
-    SCU_BASE.pintsel[(PortSel >> 2) as usize] = (SCU_BASE.pintsel[(PortSel >> 2) as usize] & !(0xFF << of)) | val;
+    let of : i32 = ((PortSel & 3) << 3) as i32;
+    let val : u32 = ((((PortNum & 0x7) << 5) | (PinNum & 0x1F)) << of) as u32;
+    SCU_BASE.pintsel[(PortSel >> 2) as usize].set((SCU_BASE.pintsel[(PortSel >> 2) as usize].get() & !(0xFF << of)) | val);
 }
