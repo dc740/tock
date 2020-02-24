@@ -57,7 +57,7 @@ impl Component for ButtonComponent {
             button::Button::new(&button_pins[..], self.board_kernel.create_grant(&grant_cap))
         );
         for &(btn, _) in button_pins.iter() {
-            // btn.set_client(button); No need to set the client, since we are not using interrupts
+            btn.set_client(button);
 			btn.make_input();
         }
 

@@ -209,3 +209,65 @@ IST [
 ];
 const GPIO_PIN_INT_BASE: StaticRef<Gpio_Pin_IntRegisters> =
     unsafe { StaticRef::new(0x40087000 as *const Gpio_Pin_IntRegisters) };
+    
+/**
+ * @brief   Clear interrupt status in Pin interrupt block
+ * @param   pPININT : The base address of Pin interrupt block
+ * @param   pins    : Pin interrupts to clear (ORed value of PININTCH*)
+ * @return  Nothing
+ */
+pub fn PININT_ClearIntStatus(u8 pin)
+{
+    let pin_edge_sensitive_clear = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
+    GPIO_PIN_INT_BASE.IST.modify(pin_edge_sensitive_clear);
+}
+
+/**
+ * @brief   Enable low edge/level PININT interrupts for pins
+ * @param   pPININT : The base address of Pin interrupt block
+ * @param   pins    : Pins to enable (ORed value of PININTCH*)
+ * @return  Nothing
+ */
+pub fn PININT_EnableIntLow(u8 pin)
+{
+    let pin_enable = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
+    GPIO_PIN_INT_BASE.SIENF.modify(pin_enable);
+}
+
+/**
+ * @brief   Enable high edge/level PININT interrupts for pins
+ * @param   pPININT : The base address of Pin interrupt block
+ * @param   pins    : Pins to enable (ORed value of PININTCH*)
+ * @return  Nothing
+ */
+pub fn PININT_EnableIntHigh(u8 pin)
+{
+    let pin_enable = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
+    GPIO_PIN_INT_BASE.SIENR.modify(pin_enable);
+}
+
+/**
+ * @brief   Configure the pins as edge sensitive in Pin interrupt block
+ * @param   pPININT : The base address of Pin interrupt block
+ * @param   pins    : Pins (ORed value of PININTCH*)
+ * @return  Nothing
+ */
+pub fn PININT_SetPinModeEdge(u8 pin)
+{
+    let pin_clear = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x0);
+    GPIO_PIN_INT_BASE.ISEL.modify(pin_clear);
+}
+
+/**
+ * @brief   Configure the pins as level sensitive in Pin interrupt block
+ * @param   pPININT : The base address of Pin interrupt block
+ * @param   pins    : Pins (ORed value of PININTCH*)
+ * @return  Nothing
+ */
+pub fn PININT_SetPinModeLevel(u8 pin)
+{
+    let pin_enable = FieldValue::<u32, ()>::new(0x1, pin as usize, 0x1);
+    GPIO_PIN_INT_BASE.ISEL.modify(pin_enable);
+}
+
+

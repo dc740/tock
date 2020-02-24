@@ -512,45 +512,32 @@ impl GPIOPin {
     /// | 0b10         | Falling edge   |
     ///
     pub fn set_interrupt_mode(&self, mode: u8) {
-        // acá modificamos isel y pintsel. checkear enableGPIOIrq en el codigo de la edu ciaa
-        let port: &GpioRegisters = &*self.port;
-        if mode & 0b01 != 0 {
-            port.imr0.set.set(self.pin_mask);
-        } else {
-            port.imr0.clear.set(self.pin_mask);
-        }
-
-        if mode & 0b10 != 0 {
-            port.imr1.set.set(self.pin_mask);
-        } else {
-            port.imr1.clear.set(self.pin_mask);
-        }
-        
-       /*
-        * Select irq channel to handle a GPIO interrupt, using its port and pin to specify it
-        * From EduCiaa pin out spec: GPIO1[9] -> port 1 and pin 9
-        */
-       Chip_SCU_GPIOIntPinSel(irqChannel , port, pin);
-       /* Clear actual configured interrupt status */
-       Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
-       /* Set edge interrupt mode */
-       Chip_PININT_SetPinModeEdge(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
+        self.assigned_interrupt = get_free_gpio_int();
+        /*
+         * Select irq channel to handle a GPIO interrupt, using its port and pin to specify it
+         * From EduCiaa pin out spec: GPIO1[9] -> port 1 and pin 9
+         */
+        SCU_GPIOIntPinSel(self.assigned_interrupt , gpio_port, gpio_pin);
+        /* Clear actual configured interrupt status */
+        PININT_ClearIntStatus(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt));
+        /* Set edge interrupt mode */
+        PININT_SetPinModeEdge(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt);
     
-       if ( edge == RAISING_EDGE) {
+        if mode == 0b01 { //rising edge
           /* Enable high edge gpio interrupt */
-          Chip_PININT_EnableIntHigh(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
-       } else if ( edge == FALLING_EDGE) {
+           PININT_EnableIntHigh(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt);
+        } else if mode == 0b10 { //falling edge
           /* Enable low edge gpio interrupt */
-          Chip_PININT_EnableIntLow(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
-       } else {
+           PININT_EnableIntLow(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt);
+        } else {
           /* Enable high and low edge */
-          Chip_PININT_EnableIntHigh(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
-          Chip_PININT_EnableIntLow(LPC_GPIO_PIN_INT, PININTCH(irqChannel));
-       }
+           PININT_EnableIntHigh(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt);
+           PININT_EnableIntLow(LPC_GPIO_PIN_INT, 1 << self.assigned_interrupt);
+        }
     }
 
     pub fn enable_interrupt(&self) {
-        self.assigned_interrupt = get_free_gpio_int();
+
         let n = cortexm4::nvic::Nvic::new(PIN_INT0 + self.assigned_interrupt);
         n.clear_pending();
         n.enable();
