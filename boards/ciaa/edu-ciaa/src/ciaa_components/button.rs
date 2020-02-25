@@ -74,7 +74,7 @@ impl Component for ButtonComponent {
             // we have to send &button_pins[..] because it expects a slice, not an array
             button::Button::new(&button_pins[..], self.board_kernel.create_grant(&grant_cap))
         );
-        for (i, &(btn, _)) in button_pins.iter().enumerate() {
+        for &(btn, _) in button_pins.iter() {
             btn.set_client(button);
 			btn.make_input();
         }

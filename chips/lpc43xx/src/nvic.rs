@@ -1,9 +1,5 @@
 //! Named constants for NVIC ids, and nvic functions useful for EDU-CIAA only
 
-use kernel::common::cells::VolatileCell;
-use kernel::common::StaticRef;
-use cortexm4;
-
 // name = value; //exception_number vector_offset flags
 pub const DAC: u32 = 0; //16 0x40 -
 pub const M0APP: u32 = 1; //17 0x44 Cortex-M0APP; Latched TXEV; for M4-M0APP communication
@@ -58,40 +54,3 @@ pub const WWDT: u32 = 49; //65 0x104 -
 pub const M0SUB: u32 = 50; //66 0x108 TXE instruction from the M0 subsystem core
 pub const C_CAN0: u32 = 51; //67 0x10C -
 pub const QEI: u32 = 52; //68 0x110 -
-
-#[repr(C)]
-// Registers for the NVIC
-struct NvicRegisters {
-    // Interrupt set-enable
-    iser: [VolatileCell<u32>; 8],
-    _reserved1: [u32; 24],
-    // Interrupt clear-enable
-    icer: [VolatileCell<u32>; 8],
-    _reserved2: [u32; 24],
-    // Interrupt set-pending (and read pending state)
-    ispr: [VolatileCell<u32>; 8],
-    _reserved3: [VolatileCell<u32>; 24],
-    // Interrupt clear-pending (and read pending state)
-    icpr: [VolatileCell<u32>; 8],
-}
-
-// NVIC base address (redefined. it's the same for all cortex-m)
-const NVIC_BASE_ADDRESS: StaticRef<NvicRegisters> =
-    unsafe { StaticRef::new(0xe000e100 as *const NvicRegisters) };
-    
-/// Get the index (0-7) for the lowest number unused GPIO interrupt, or `None` if none
-/// are available.
-pub fn get_free_gpio_int() -> Option<u32> {
-    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
-
-    let iser =  nvic.iser[4].get();
-
-    // If there are any high bits there is a pending interrupt
-    if iser != 0 {
-        // trailing_zeros == index of first high bit
-        let bit = iser.trailing_zeros();
-        return Some(bit);
-    }
-
-    None
-}

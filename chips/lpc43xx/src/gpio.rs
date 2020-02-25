@@ -9,7 +9,7 @@ use kernel::common::StaticRef;
 use kernel::common::registers::{ReadWrite, WriteOnly, FieldValue};
 use crate::scu::{SCU_BASE, SFSP, SCU_GPIOIntPinSel};
 use crate::gpio_pin_int::{ PININT_ClearIntStatus, PININT_SetPinModeEdge, PININT_EnableIntHigh, PININT_EnableIntLow};
-use crate::nvic::{get_free_gpio_int, PIN_INT0};
+use crate::nvic::PIN_INT0;
 
 /// GPIO port register
 #[repr(C)]
