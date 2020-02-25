@@ -25,7 +25,9 @@ impl Chip for Lpc43xx {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;
-
+    
+    #[no_mangle]
+    #[inline(never)]
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
@@ -40,14 +42,6 @@ impl Chip for Lpc43xx {
                             // This handler should work with JLink GDB to unwind the stack trace
 //                            asm!("bkpt #10
 //                            bx lr"::::);
-                            asm!(
-                                "mov r0, $0
-                                bkpt #1"
-                                :                                          // outputs
-                                :  "r"(interrupt)                          // inputs
-                                :  "r0"                                        // clobbers
-                                :                                          // options
-                                );
                             panic!("unhandled interrupt {}", interrupt);
                         }
                     }

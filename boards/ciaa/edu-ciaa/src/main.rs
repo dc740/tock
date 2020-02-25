@@ -101,7 +101,6 @@ pub unsafe fn reset_handler() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
-
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
         MuxUart<'static>,
