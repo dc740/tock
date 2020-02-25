@@ -72,12 +72,6 @@ impl IndexMut<usize> for Port {
     }
 }
 
-impl Port {
-    pub fn handle_interrupt(&self) {
-        ()
-    }
-}
-
 pub static mut GPIO0: Port = Port {
 pins: [
     Some(GPIOPin::new(0,0,SFSP::MODE::Function0Default,0,0,255)),
