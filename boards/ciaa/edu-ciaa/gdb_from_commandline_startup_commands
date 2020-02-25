@@ -10,6 +10,7 @@ mem 0x1b010000 0x1b080000 ro nocache
 mem 0x1b080000 0x100000000 ro nocache
 # RAM:
 mem 0x0000000010000000 0x0000000010008000 rw nocache
+set print elements 0
 target remote localhost:3333
 monitor arm semihosting disable
 #monitor reset init
