@@ -45,18 +45,36 @@ impl Component for ButtonComponent {
                 &'static dyn kernel::hil::gpio::InterruptValuePin,
                 button::GpioMode
             ); 4],
-            [(&lpc43xx::gpio::GPIO0[4], button::GpioMode::LowWhenPressed),
-			(&lpc43xx::gpio::GPIO0[8], button::GpioMode::LowWhenPressed),
-			(&lpc43xx::gpio::GPIO0[9], button::GpioMode::LowWhenPressed),
-			(&lpc43xx::gpio::GPIO1[9], button::GpioMode::LowWhenPressed)]
+            [(static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&lpc43xx::gpio::GPIO0[4])
+            )
+            .finalize(), button::GpioMode::LowWhenPressed),
+			(static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&lpc43xx::gpio::GPIO0[8])
+            )
+            .finalize(), button::GpioMode::LowWhenPressed),
+			(static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&lpc43xx::gpio::GPIO0[9])
+            )
+            .finalize(), button::GpioMode::LowWhenPressed),
+			(static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&lpc43xx::gpio::GPIO1[9])
+            )
+            .finalize(), button::GpioMode::LowWhenPressed)]
         );
 
+
+            
         let button = static_init!(
             button::Button<'static>,
             // we have to send &button_pins[..] because it expects a slice, not an array
             button::Button::new(&button_pins[..], self.board_kernel.create_grant(&grant_cap))
         );
-        for &(btn, _) in button_pins.iter() {
+        for (i, &(btn, _)) in button_pins.iter().enumerate() {
             btn.set_client(button);
 			btn.make_input();
         }

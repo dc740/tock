@@ -2,6 +2,7 @@
 use cortexm4;
 use kernel::Chip;
 use crate::atimer;
+use crate::gpio;
 use crate::nvic;
 
 pub struct Lpc43xx {
@@ -31,7 +32,10 @@ impl Chip for Lpc43xx {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
                         nvic::ATIMER => atimer::ATIMER.handle_interrupt(),
-                        //TODO add map from GPIO buttons to interrupts (don't forget to assign an interrupt) and handle them here
+                        nvic::PIN_INT0 => gpio::GPIO0[4].handle_interrupt(),
+                        nvic::PIN_INT1 => gpio::GPIO0[8].handle_interrupt(),
+                        nvic::PIN_INT2 => gpio::GPIO0[9].handle_interrupt(),
+                        nvic::PIN_INT3 => gpio::GPIO1[9].handle_interrupt(),
                         _ => {
                             // This handler should work with JLink GDB to unwind the stack trace
 //                            asm!("bkpt #10
