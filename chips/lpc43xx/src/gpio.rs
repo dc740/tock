@@ -436,7 +436,7 @@ impl GPIOPin {
     }
     pub fn make_output(&self) {
 		let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
-		sfsp.modify(SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown);
+		sfsp.modify(SFSP::EPUN::EnablePullUpEnableBothPullDownResistorAndPullUpResistorForRepeaterMode + SFSP::EPD::DisablePullDown);
 		// Set pin bit in dir to 1 to set an output direction
 		// and use these extra steps to leave the other values untouched
 		let gpio_dir = &GPIO_PORT_BASE.dir[self.gpio_port as usize];
@@ -446,7 +446,7 @@ impl GPIOPin {
 
     pub fn make_input(&self) {
 		let sfsp = &SCU_BASE.sfsp[self.port_name as usize][self.pin_name as usize];
-        sfsp.modify(SFSP::EPUN::DisablePullUp + SFSP::EPD::DisablePullDown);
+        sfsp.modify(SFSP::EPUN::EnablePullUpEnableBothPullDownResistorAndPullUpResistorForRepeaterMode + SFSP::EPD::DisablePullDown);
 		// Set pin bit in dir to 0 to set an input direction
 		// and use these extra steps to leave the other values untouched
 		let gpio_dir = &GPIO_PORT_BASE.dir[self.gpio_port as usize];
@@ -503,10 +503,7 @@ impl GPIOPin {
 		b.set(0)
     }
     
-    pub fn assign_interrupt_to_gpio(&mut self, interrupt:u8) {
-        self.assigned_interrupt = interrupt;
-    }
-        /// Sets the interrupt mode registers. Interrupts may fire on the rising or
+    /// Sets the interrupt mode registers. Interrupts may fire on the rising or
     /// falling edge of the pin or on both.
     ///
     /// The mode is a two-bit value based on the mapping from section 23.7.13 of

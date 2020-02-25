@@ -503,14 +503,14 @@ pub fn init_uart2_pinfunc() {
 
 /**
  * @brief   GPIO Interrupt Pin Select ported from lpcopen
- * @param   PortSel : GPIO PINTSEL interrupt, should be: 0 to 7
- * @param   PortNum : GPIO port number interrupt, should be: 0 to 7
- * @param   PinNum  : GPIO pin number Interrupt , should be: 0 to 31
+ * @param   port_sel : GPIO PINTSEL interrupt, should be: 0 to 7
+ * @param   port_num : GPIO port number interrupt, should be: 0 to 7
+ * @param   pin_num  : GPIO pin number Interrupt , should be: 0 to 31
  * @return  Nothing
  */
-pub fn SCU_GPIOIntPinSel(PortSel: u8, PortNum: u8, PinNum: u8)
+pub fn SCU_GPIOIntPinSel(port_sel: u8, port_num: u8, pin_num: u8)
 {
-    let of : i32 = ((PortSel & 3) << 3) as i32;
-    let val : u32 = ((((PortNum & 0x7) << 5) | (PinNum & 0x1F)) << of) as u32;
-    SCU_BASE.pintsel[(PortSel >> 2) as usize].set((SCU_BASE.pintsel[(PortSel >> 2) as usize].get() & !(0xFF << of)) | val);
+    let of : i32 = ((port_sel & 3) << 3) as i32;
+    let val : u32 = ((((port_num & 0x7) << 5) | (pin_num & 0x1F)) << of) as u32;
+    SCU_BASE.pintsel[(port_sel >> 2) as usize].set((SCU_BASE.pintsel[(port_sel >> 2) as usize].get() & !(0xFF << of)) | val);
 }

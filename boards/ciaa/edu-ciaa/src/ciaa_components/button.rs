@@ -71,12 +71,10 @@ impl Component for ButtonComponent {
             
         let button = static_init!(
             button::Button<'static>,
-            // we have to send &button_pins[..] because it expects a slice, not an array
-            button::Button::new(&button_pins[..], self.board_kernel.create_grant(&grant_cap))
+            button::Button::new(button_pins, self.board_kernel.create_grant(&grant_cap))
         );
         for &(btn, _) in button_pins.iter() {
             btn.set_client(button);
-			btn.make_input();
         }
 
         button

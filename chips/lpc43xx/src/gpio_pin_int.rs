@@ -225,8 +225,7 @@ pub fn PININT_ClearIntStatus(pin : u8)
 
 /**
  * @brief   Enable low edge/level PININT interrupts for pins
- * @param   pPININT : The base address of Pin interrupt block
- * @param   pins    : Pins to enable (ORed value of PININTCH*)
+ * @param   pin    : Pin to enable
  * @return  Nothing
  */
 pub fn PININT_EnableIntLow(pin : u8)
@@ -236,8 +235,7 @@ pub fn PININT_EnableIntLow(pin : u8)
 
 /**
  * @brief   Enable high edge/level PININT interrupts for pins
- * @param   pPININT : The base address of Pin interrupt block
- * @param   pins    : Pins to enable (ORed value of PININTCH*)
+ * @param   pins    : Pin to enable
  * @return  Nothing
  */
 pub fn PININT_EnableIntHigh(pin : u8)
@@ -246,9 +244,28 @@ pub fn PININT_EnableIntHigh(pin : u8)
 }
 
 /**
+ * @brief   Disable low edge/level PININT interrupts for pins
+ * @param   pin    : Pin to disable
+ * @return  Nothing
+ */
+pub fn PININT_DisableIntLow(pin : u8)
+{
+    GPIO_PIN_INT_BASE.cienf.set(1<<pin);
+}
+
+/**
+ * @brief   Disable high edge/level PININT interrupts for pins
+ * @param   pins    : Pin to disable
+ * @return  Nothing
+ */
+pub fn PININT_DisableIntHigh(pin : u8)
+{
+    GPIO_PIN_INT_BASE.cienr.set(1<<pin);
+}
+
+/**
  * @brief   Configure the pins as edge sensitive in Pin interrupt block
- * @param   pPININT : The base address of Pin interrupt block
- * @param   pins    : Pins (ORed value of PININTCH*)
+ * @param   pins    : Pin
  * @return  Nothing
  */
 pub fn PININT_SetPinModeEdge(pin : u8)
@@ -259,8 +276,7 @@ pub fn PININT_SetPinModeEdge(pin : u8)
 
 /**
  * @brief   Configure the pins as level sensitive in Pin interrupt block
- * @param   pPININT : The base address of Pin interrupt block
- * @param   pins    : Pins (ORed value of PININTCH*)
+ * @param   pins    : Pin
  * @return  Nothing
  */
 pub fn PININT_SetPinModeLevel(pin : u8)
