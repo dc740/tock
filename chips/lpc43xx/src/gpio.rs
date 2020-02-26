@@ -547,6 +547,8 @@ impl GPIOPin {
     }
 
     pub fn handle_interrupt(&self) {
+        // it's very important to clear the interrupt BEFORE running our code
+        PININT_ClearIntStatus(self.assigned_interrupt);
         self.client.map(|client| {
             client.fired();
         });
