@@ -63,22 +63,7 @@ pub mod wwdt;*/
 use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 
 unsafe extern "C" fn unhandled_interrupt() {
-    let mut interrupt_number: u32;
-    // IPSR[8:0] holds the currently active interrupt
-    asm!("bkpt 10
-                            bx lr"::::);
-    
-    asm!(
-    "mrs    r0, ipsr                    "
-    : "={r0}"(interrupt_number)
-    :
-    : "r0"
-    :
-    );
-
-    interrupt_number = interrupt_number & 0x1ff;
-
-    panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
+    panic!("Unhandled Interrupt. ISR ?? is active.");
 }
 
 extern "C" {
@@ -127,7 +112,11 @@ pub unsafe fn init() {
     tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
-    cortexm4::nvic::disable_all();
+    // Set PRIMASK
+    asm!("cpsid i" :::: "volatile");
+
     cortexm4::nvic::clear_all_pending();
-    cortexm4::nvic::enable_all();
+
+    // Unset PRIMASK
+    asm!("cpsie i" :::: "volatile");
 }

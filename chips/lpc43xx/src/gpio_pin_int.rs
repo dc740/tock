@@ -285,4 +285,24 @@ pub fn PININT_SetPinModeLevel(pin : u8)
     GPIO_PIN_INT_BASE.isel.modify(pin_enable);
 }
 
+/**
+ * @brief   Enables the interrupt using the IENR register
+ * @param   pins    : Pin
+ * @return  Nothing
+ */
+pub fn PININT_EnableInterrupt(pin : u8)
+{
+    let pin_enable = FieldValue::<u32, IENR::Register>::new(0x1, pin as usize, 0x1);
+    GPIO_PIN_INT_BASE.ienr.modify(pin_enable);
+}
 
+/**
+ * @brief   Disables the interrupt using the IENR register
+ * @param   pins    : Pin
+ * @return  Nothing
+ */
+pub fn PININT_DisableInterrupt(pin : u8)
+{
+    let pin_enable = FieldValue::<u32, IENR::Register>::new(0x1, pin as usize, 0x0);
+    GPIO_PIN_INT_BASE.ienr.modify(pin_enable);
+}

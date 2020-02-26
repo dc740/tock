@@ -511,6 +511,6 @@ pub fn init_uart2_pinfunc() {
 pub fn SCU_GPIOIntPinSel(port_sel: u8, port_num: u8, pin_num: u8)
 {
     let of : i32 = ((port_sel & 3) << 3) as i32;
-    let val : u32 = ((((port_num & 0x7) << 5) | (pin_num & 0x1F)) << of) as u32;
+    let val : u32 = ((((port_num & 0x7) << 5) as u32 | (pin_num & 0x1F) as u32) << of) as u32;
     SCU_BASE.pintsel[(port_sel >> 2) as usize].set((SCU_BASE.pintsel[(port_sel >> 2) as usize].get() & !(0xFF << of)) | val);
 }

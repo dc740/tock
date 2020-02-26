@@ -500,9 +500,6 @@ impl GPIOPin {
     /// Sets the interrupt mode registers. Interrupts may fire on the rising or
     /// falling edge of the pin or on both.
     ///
-    /// The mode is a two-bit value based on the mapping from section 23.7.13 of
-    /// the SAM4L datasheet (page 563):
-    ///
     /// | `mode` value | Interrupt Mode |
     /// | ------------ | -------------- |
     /// | 0b00         | Pin change     |
