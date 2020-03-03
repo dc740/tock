@@ -170,7 +170,7 @@ pub unsafe fn reset_handler() {
             alarm: alarm,
         };
     let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
-
+    debug!("ASD");
     //platform.console.initialize();
     extern "C" {
         /// Beginning of the ROM region containing app images.

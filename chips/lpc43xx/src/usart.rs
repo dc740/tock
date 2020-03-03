@@ -530,6 +530,13 @@ impl<'a> Usart<'a> {
                 + LCR::PE::DisableParityGenerationAndChecking,
         );
     }
+    
+    /**
+     * Check if the fifo is NOT full
+     */
+    pub fn is_fifo_available(&self) -> bool {
+        return self.registers.lsr.is_set(LSR::THRE);
+    }
     /* Determines and sets best dividers to get a target baud rate */
     #[inline(never)]
     #[no_mangle]
@@ -677,11 +684,15 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         // if client set len too big, we will transmit what we can
         let tx_final_len = cmp::min(tx_len, tx_buffer.len());
-        for i in 0..tx_final_len {
-            self.put_byte(tx_buffer[i]);
+        for i in (0..tx_final_len).step_by(16) {
+            while !self.is_fifo_available() {};
+            let this_batch_top = cmp::min(i+16, tx_final_len);
+            for offset in i..this_batch_top {
+                self.put_byte(tx_buffer[offset]);
+            }
         }
         /* TODO: we could send one byte, causing EOT interrupt
-        if self.tx_fifo_not_full() {
+        if self.is_fifo_available() {
             self.send_byte(buffer[0]);
         }
 
