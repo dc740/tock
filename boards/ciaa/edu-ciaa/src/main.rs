@@ -133,7 +133,6 @@ pub unsafe fn reset_handler() {
         kernel::debug::DebugWriterWrapper::new(debugger)
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
-    debug!("Initialization complete. Entering main loop");
     
     // Create a UartDevice for the console.
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
@@ -170,8 +169,6 @@ pub unsafe fn reset_handler() {
             alarm: alarm,
         };
     let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
-    debug!("ASD");
-    debug!("qwe");
     //platform.console.initialize();
     extern "C" {
         /// Beginning of the ROM region containing app images.
