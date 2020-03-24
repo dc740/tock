@@ -1,10 +1,12 @@
 use core::cmp;
+use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ReturnCode;
 use crate::{ccu1, scu};
-
+use crate::deferred_call_tasks::Task;
+use kernel::common::deferred_call::DeferredCall;
 /// USART0_2_3
 #[repr(C)]
 struct UsartRegisters {
@@ -472,10 +474,24 @@ const USART2_BASE: StaticRef<UsartRegisters> =
 //const USART3_BASE: StaticRef<UsartRegisters> =
 //    unsafe { StaticRef::new(0x400C2000 as *const UsartRegisters) };
 
+/// Stores an ongoing TX transaction. Similar to cc26x2
+struct Transaction {
+    /// The buffer containing the bytes to transmit as it should be returned to
+    /// the client
+    buffer: &'static mut [u8],
+    /// The total amount to transmit
+    length: usize,
+    /// The index of the byte currently being sent
+    index: usize,
+}
+
 pub struct Usart<'a> {
     registers: StaticRef<UsartRegisters>,
     tx_client: OptionalCell<&'a dyn kernel::hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn kernel::hil::uart::ReceiveClient>,
+    tx: MapCell<Transaction>,
+    rx: MapCell<Transaction>,
+    receiving_word: Cell<bool>,
 }
 
 impl<'a> Usart<'a> {
@@ -484,7 +500,24 @@ impl<'a> Usart<'a> {
             registers: base_addr,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
+
+            tx: MapCell::empty(),
+            rx: MapCell::empty(),
+
+            receiving_word: Cell::new(false),
         }
+    }
+    pub fn handle_interrupt(&self) {
+        unsafe {
+         self.tx_client.map(|usartclient| {
+                                usartclient.transmitted_buffer(
+                                    dummy_buffer,
+                                    self.transmitted_len.take(),
+                                    ReturnCode::SUCCESS,
+                                )
+                    });
+             }
+        self.transmitted_len.set(0);
     }
     pub fn disable_tx(&self) {
         self.registers.ter.set(0);
@@ -532,9 +565,11 @@ impl<'a> Usart<'a> {
     }
     
     /**
-     * Check if the fifo is NOT full
+     * Check if the fifo is NOT full.
+     * Sadly this only informs you about an empty
+     * FIFO and not about available space.
      */
-    pub fn is_fifo_available(&self) -> bool {
+    pub fn is_tx_fifo_empty(&self) -> bool {
         return self.registers.lsr.is_set(LSR::THRE);
     }
     /* Determines and sets best dividers to get a target baud rate */
@@ -598,17 +633,6 @@ impl<'a> Usart<'a> {
             .write(FDR::MULVAL.val(sm) + FDR::DIVADDVAL.val(sd));
         /* Return actual baud rate */
         let result = (pclk >> 4) * sm / (sdiv * (sm + sd));
-        //do nothing with the result. but allkow us to debug it
-        /*unsafe {
-            asm!(
-            "mov $0, $0
-            bkpt #1"
-            :                                          // outputs
-            :  "r"(result)                             // inputs
-            :                                          // clobbers
-            :                                          // no options
-            );
-        }*/
         result //115210
     }
     pub fn put_byte(&self, some_byte: u8) {
@@ -685,25 +709,31 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
         // if client set len too big, we will transmit what we can
         let tx_final_len = cmp::min(tx_len, tx_buffer.len());
         for i in (0..tx_final_len).step_by(16) {
-            while !self.is_fifo_available() {};
+            while !self.is_tx_fifo_empty() {};
             let this_batch_top = cmp::min(i+16, tx_final_len);
             for offset in i..this_batch_top {
                 self.put_byte(tx_buffer[offset]);
             }
         }
-        /* TODO: we could send one byte, causing EOT interrupt
-        if self.is_fifo_available() {
-            self.send_byte(buffer[0]);
-        }
 
-        Transaction could be continued in interrupt handler
-        but we are in a hurry
-        self.tx.put(Transaction {
-            buffer: buffer,
-            length: tx_len,
-            index: 1,
-        });*/
-        (ReturnCode::SUCCESS, None)
+        // if there is a weird input, don't try to do any transfers
+        if len == 0 || len > buffer.len() {
+            (ReturnCode::ESIZE, Some(buffer))
+        } else if self.tx.is_some() {
+            (ReturnCode::EBUSY, Some(buffer))
+        } else {
+            // we will send one byte, causing EOT interrupt
+            if self.is_tx_fifo_empty() {
+                self.put_byte(buffer[0] as u32);
+            }
+            // Transaction will be continued in interrupt bottom half
+            self.tx.put(Transaction {
+                buffer: buffer,
+                length: len,
+                index: 1,
+            });
+            (ReturnCode::SUCCESS, None)
+        }
     }
     /// Transmit a single word of data asynchronously. The word length is
     /// determined by the UART configuration: it can be 6, 7, 8, or 9 bits long.
@@ -721,7 +751,13 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
     /// `transmit_buffer` or `transmit_word` operation will return
     /// EBUSY.
     fn transmit_word(&self, word: u32) -> ReturnCode {
-        //TODO: not implemented
+        // if there's room in outgoing FIFO and no buffer transaction
+        if self.tx_fifo_is_empty() && self.tx.is_none() {
+            self.write(word);
+            return ReturnCode::SUCCESS;
+        } else if !(self.tx_fifo_is_empty()){
+            ReturnCode::BUSY
+        }
         ReturnCode::FAIL
     }
 
@@ -761,10 +797,27 @@ impl<'a> kernel::hil::uart::Receive<'a> for Usart<'a> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, None)
+        if len == 0 || len > buffer.len() {
+            (ReturnCode::ESIZE, Some(buffer))
+        } else if self.rx.is_some() || self.receiving_word.get() {
+            (ReturnCode::EBUSY, Some(buffer))
+        } else {
+            self.rx.put(Transaction {
+                buffer: buffer,
+                length: len,
+                index: 0,
+            });
+
+            (ReturnCode::SUCCESS, None)
+        }
     }
     fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        if self.rx.is_some() || self.receiving_word.get() {
+            ReturnCode::EBUSY
+        } else {
+            self.receiving_word.set(true);
+            ReturnCode::SUCCESS
+        }
     }
 
     fn receive_abort(&self) -> ReturnCode {

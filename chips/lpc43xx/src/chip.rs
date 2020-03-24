@@ -5,6 +5,9 @@ use crate::atimer;
 use crate::gpio;
 use crate::nvic;
 
+use kernel::common::deferred_call;
+use crate::deferred_call_tasks::Task;
+use crate::usart;
 pub struct Lpc43xx {
     mpu: cortexm4::mpu::MPU,
 	userspace_kernel_boundary: cortexm4::syscall::SysCall,
@@ -38,6 +41,7 @@ impl Chip for Lpc43xx {
                         nvic::PIN_INT1 => gpio::GPIO0[8].handle_interrupt(),
                         nvic::PIN_INT2 => gpio::GPIO0[9].handle_interrupt(),
                         nvic::PIN_INT3 => gpio::GPIO1[9].handle_interrupt(),
+                        nvic::USART2 => usart::USART2.handle_interrupt(),
                         _ => {
                             // This handler should work with JLink GDB to unwind the stack trace
 //                            asm!("bkpt #10
