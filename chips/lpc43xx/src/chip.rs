@@ -5,8 +5,6 @@ use crate::atimer;
 use crate::gpio;
 use crate::nvic;
 
-use kernel::common::deferred_call;
-use crate::deferred_call_tasks::Task;
 use crate::usart;
 pub struct Lpc43xx {
     mpu: cortexm4::mpu::MPU,

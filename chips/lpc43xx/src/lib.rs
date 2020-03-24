@@ -28,9 +28,7 @@ pub mod creg;
 pub mod eeprom;
 pub mod emc;
 pub mod ethernet;
-pub mod eventrouter;*/
-pub mod deferred_call_tasks;
-/*
+pub mod eventrouter;
 pub mod gima;
 pub mod gpdma;
 pub mod gpio_group_int0;

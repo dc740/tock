@@ -1,12 +1,11 @@
 use core::cmp;
-use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
+use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ReturnCode;
-use crate::{ccu1, scu};
-use crate::deferred_call_tasks::Task;
-use kernel::common::deferred_call::DeferredCall;
+use crate::{ccu1, nvic, scu};
+
+const HW_FIFO_BUFFER_LEN : usize = 14;
 /// USART0_2_3
 #[repr(C)]
 struct UsartRegisters {
@@ -15,9 +14,9 @@ struct UsartRegisters {
     ///  * Divisor Latch LSB. Least significant byte of the baud rate divisor value. The full divisor is used to generate a baud rate from the fractional rate divider (DLAB = 1).
     ///  * Transmit Holding Register. The next character to be transmitted is written here (DLAB = 0).
     rbr: ReadWrite<u32>,
-    /// Divisor Latch MSB. Most significant byte of the baud rate divisor value. The ful
-    /// Also Interrupt Enable Register. Contains individual interrupt enable bits for the 7 potential UART interrupts (DLAB = 0).
-    dlm: ReadWrite<u32>,
+    /// Divisor Latch MSB (DLM). Most significant byte of the baud rate divisor value. The ful
+    /// Also Interrupt Enable Register IER. Contains individual interrupt enable bits for the 7 potential UART interrupts (DLAB = 0).
+    ier: ReadWrite<u32, IER::Register>,
     /// Interrupt ID Register. Identifies which interrupt(s) are pending. (ReadOnly)
     /// Also FIFO Control Register. Controls UART FIFO usage and modes. So we changed from ReadOnly to ReadWrite
     fcr: ReadWrite<u32, FCR::Register>,
@@ -491,7 +490,6 @@ pub struct Usart<'a> {
     rx_client: OptionalCell<&'a dyn kernel::hil::uart::ReceiveClient>,
     tx: MapCell<Transaction>,
     rx: MapCell<Transaction>,
-    receiving_word: Cell<bool>,
 }
 
 impl<'a> Usart<'a> {
@@ -503,21 +501,84 @@ impl<'a> Usart<'a> {
 
             tx: MapCell::empty(),
             rx: MapCell::empty(),
-
-            receiving_word: Cell::new(false),
         }
     }
+    fn disable_tx_interrupts(&self) {
+        // disable interrupts
+        self.registers.ier.modify(IER::THREIE::DisableDisableTheTHREInterrupt);
+
+    }
+    fn disable_rx_interrupts(&self) {
+        // disable interrupts
+        self.registers.ier.modify(IER::RBRIE::DisableDisableTheRDAInterrupt + IER::RXIE::DisableDisableTheRXLineStatusInterrupts);
+    }
+
+    fn enable_tx_interrupts(&self) {
+        // set only interrupts used
+        self.registers.ier.modify(IER::THREIE::EnableEnableTheTHREInterrupt);
+    }
+    fn enable_rx_interrupts(&self) {
+        // set only interrupts used
+        self.registers.ier.modify(IER::RBRIE::EnableEnableTheRDAInterrupt + IER::RXIE::EnableEnableTheRXLineStatusInterrupts);
+    }
     pub fn handle_interrupt(&self) {
-        unsafe {
-         self.tx_client.map(|usartclient| {
-                                usartclient.transmitted_buffer(
-                                    dummy_buffer,
-                                    self.transmitted_len.take(),
-                                    ReturnCode::SUCCESS,
-                                )
-                    });
-             }
-        self.transmitted_len.set(0);
+        // Hardware RX FIFO is not empty
+        while self.is_rx_fifo_not_empty() {
+            // buffer read request was made
+            if self.rx.is_some() {
+                self.rx.take().map(|mut rx| {
+                    // read in the entire buffer ASAP, or data can be lost.
+                    if rx.index < rx.length {
+                        let byte = self.get_byte();
+                        rx.buffer[rx.index] = byte;
+                        rx.index += 1;
+                    }
+
+                    if rx.index == rx.length {
+                        self.rx_client.map(move |client| {
+                            client.received_buffer(
+                                rx.buffer,
+                                rx.index,
+                                ReturnCode::SUCCESS,
+                                kernel::hil::uart::Error::None,
+                            );
+                        });
+                    } else {
+                        self.rx.put(rx);
+                    }
+                });
+            }
+            // no current read request
+            else {
+                // read bytes into the void to avoid hardware RX buffer overflow
+                self.get_byte();
+            }
+        }
+        self.tx.take().map(|mut tx| {
+            // send out the buffer if available, IRQ when TX FIFO empty will bring us back
+            if self.is_tx_fifo_available() && tx.index < tx.length {
+                let transmit_len = cmp::min(HW_FIFO_BUFFER_LEN, tx.length-tx.index);
+                for offset in tx.index..tx.index+transmit_len {
+                    if self.is_tx_fifo_available() {
+                        self.put_byte(tx.buffer[offset]);
+                        tx.index += 1;
+                    } else {
+                        break;
+                    }                    
+                }
+            }
+            // request is done
+            if tx.index == tx.length {
+                self.tx_client.map(move |client| {
+                    client.transmitted_buffer(tx.buffer, tx.length, ReturnCode::SUCCESS);
+                });
+                // disable the interrupts once we are done
+                //self.disable_tx_interrupts();
+            } else {
+                // keep TX buffer as there is more left in request
+                self.tx.put(tx);
+            }
+        });
     }
     pub fn disable_tx(&self) {
         self.registers.ter.set(0);
@@ -534,7 +595,7 @@ impl<'a> Usart<'a> {
         /* Disable Tx */
         self.disable_tx();
         /* Disable interrupts */
-        self.registers.dlm.set(0);
+        self.registers.ier.set(0);
         /* Set LCR to default state */
         self.registers.lcr.set(0);
         /* Set ACR to default state */
@@ -569,12 +630,14 @@ impl<'a> Usart<'a> {
      * Sadly this only informs you about an empty
      * FIFO and not about available space.
      */
-    pub fn is_tx_fifo_empty(&self) -> bool {
-        return self.registers.lsr.is_set(LSR::THRE);
+    pub fn is_tx_fifo_available(&self) -> bool {
+        self.registers.lsr.is_set(LSR::THRE)
+    }
+    
+    pub fn is_rx_fifo_not_empty(&self) -> bool {
+        self.registers.lsr.is_set(LSR::RDR)
     }
     /* Determines and sets best dividers to get a target baud rate */
-    #[inline(never)]
-    #[no_mangle]
     pub fn set_baud_fdr(&self, baud: u32) -> u32 {
         let (mut sdiv, mut sm, mut sd): (u32, u32, u32) = (0, 1, 0);
         let pclk: u32;
@@ -623,7 +686,7 @@ impl<'a> Usart<'a> {
             .lcr
             .modify(LCR::DLAB::EnabledEnableAccessToDivisorLatches);
         self.registers.rbr.set(sdiv & 0xff);
-        self.registers.dlm.set((sdiv >> 8) & 0xff);
+        self.registers.ier.set((sdiv >> 8) & 0xff);
         self.registers
             .lcr
             .modify(LCR::DLAB::DisabledDisableAccessToDivisorLatches);
@@ -667,7 +730,14 @@ impl<'a> kernel::hil::uart::Configure for Usart<'a> {
         self.set_baud_fdr(params.baud_rate);
         self.init_lcr();
         self.enable_tx();
-
+        // Enable interrupts
+        self.enable_rx_interrupts();
+        self.enable_tx_interrupts();
+        unsafe {
+            let n = cortexm4::nvic::Nvic::new(nvic::USART2);
+            n.clear_pending();
+            n.enable();
+        }
         ReturnCode::SUCCESS
     }
 }
@@ -704,36 +774,39 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
     fn transmit_buffer(
         &self,
         tx_buffer: &'static mut [u8],
-        tx_len: usize,
+        len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        // if client set len too big, we will transmit what we can
-        let tx_final_len = cmp::min(tx_len, tx_buffer.len());
-        for i in (0..tx_final_len).step_by(16) {
-            while !self.is_tx_fifo_empty() {};
-            let this_batch_top = cmp::min(i+16, tx_final_len);
-            for offset in i..this_batch_top {
-                self.put_byte(tx_buffer[offset]);
-            }
-        }
-
+        self.disable_tx_interrupts();
+        
+        let transmit_len = cmp::min(HW_FIFO_BUFFER_LEN, tx_buffer.len());
+        let mut transmitted_len = 0;        
+        let result;
         // if there is a weird input, don't try to do any transfers
-        if len == 0 || len > buffer.len() {
-            (ReturnCode::ESIZE, Some(buffer))
-        } else if self.tx.is_some() {
-            (ReturnCode::EBUSY, Some(buffer))
+        if len == 0 || len > tx_buffer.len() {
+            result = (ReturnCode::ESIZE, Some(tx_buffer));
+        } else if self.tx.is_some() || !self.is_tx_fifo_available() {
+            result = (ReturnCode::EBUSY, Some(tx_buffer));
         } else {
-            // we will send one byte, causing EOT interrupt
-            if self.is_tx_fifo_empty() {
-                self.put_byte(buffer[0] as u32);
+            // we will send the first full buffer, causing EOT interrupt
+            for offset in 0..transmit_len {
+                if self.is_tx_fifo_available() {
+                    self.put_byte(tx_buffer[offset]);
+                    transmitted_len += 1;
+                } else {
+                    break;
+                }
             }
+            
             // Transaction will be continued in interrupt bottom half
             self.tx.put(Transaction {
-                buffer: buffer,
+                buffer: tx_buffer,
                 length: len,
-                index: 1,
+                index: transmitted_len,
             });
-            (ReturnCode::SUCCESS, None)
+            result = (ReturnCode::SUCCESS, None);
         }
+        self.enable_tx_interrupts();
+        result
     }
     /// Transmit a single word of data asynchronously. The word length is
     /// determined by the UART configuration: it can be 6, 7, 8, or 9 bits long.
@@ -751,13 +824,6 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
     /// `transmit_buffer` or `transmit_word` operation will return
     /// EBUSY.
     fn transmit_word(&self, word: u32) -> ReturnCode {
-        // if there's room in outgoing FIFO and no buffer transaction
-        if self.tx_fifo_is_empty() && self.tx.is_none() {
-            self.write(word);
-            return ReturnCode::SUCCESS;
-        } else if !(self.tx_fifo_is_empty()){
-            ReturnCode::BUSY
-        }
         ReturnCode::FAIL
     }
 
@@ -795,15 +861,15 @@ impl<'a> kernel::hil::uart::Receive<'a> for Usart<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        rx_len: usize,
+        len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        if len == 0 || len > buffer.len() {
-            (ReturnCode::ESIZE, Some(buffer))
-        } else if self.rx.is_some() || self.receiving_word.get() {
-            (ReturnCode::EBUSY, Some(buffer))
+        if len == 0 || len > rx_buffer.len() {
+            (ReturnCode::ESIZE, Some(rx_buffer))
+        } else if self.rx.is_some() {
+            (ReturnCode::EBUSY, Some(rx_buffer))
         } else {
             self.rx.put(Transaction {
-                buffer: buffer,
+                buffer: rx_buffer,
                 length: len,
                 index: 0,
             });
@@ -812,12 +878,7 @@ impl<'a> kernel::hil::uart::Receive<'a> for Usart<'a> {
         }
     }
     fn receive_word(&self) -> ReturnCode {
-        if self.rx.is_some() || self.receiving_word.get() {
-            ReturnCode::EBUSY
-        } else {
-            self.receiving_word.set(true);
-            ReturnCode::SUCCESS
-        }
+        ReturnCode::FAIL
     }
 
     fn receive_abort(&self) -> ReturnCode {

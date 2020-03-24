@@ -4,7 +4,6 @@ use core::ops::{Index, IndexMut};
 use core::sync::atomic::AtomicUsize;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::ReturnCode;
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadWrite, WriteOnly, FieldValue};
 use crate::scu::{SCU_BASE, SFSP, SCU_GPIOIntPinSel};
@@ -684,6 +683,6 @@ impl hil::gpio::Interrupt for GPIOPin {
     }
 
     fn is_pending(&self) -> bool {
-        GPIOPin::is_pending(self)
+        unimplemented!("I don't even want to think about an excuse");
     }
 }
