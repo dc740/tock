@@ -7,15 +7,13 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
-use kernel::hil::gpio;
-use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 use kernel::Platform;
 #[allow(unused_imports)]
@@ -24,21 +22,14 @@ use kernel::{create_capability, debug, debug_gpio, static_init};
 /// Support routines for debugging I/O.
 ///
 /// Note: Use of this module will trample any other USART0 configuration.
-#[macro_use]
 pub mod io;
 #[allow(dead_code)]
 mod test_take_map_cell;
-
-static mut SPI_READ_BUF: [u8; 64] = [0; 64];
-static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
 
 // State for loading and holding applications.
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 20;
-
-// How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
@@ -47,6 +38,7 @@ static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
+static mut CHIP: Option<&'static sam4l::chip::Sam4l> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -209,19 +201,26 @@ pub unsafe fn reset_handler() {
     );
 
     let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
+    CHIP = Some(chip);
+
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     // Initialize USART0 for Uart
     sam4l::usart::USART0.set_mode(sam4l::usart::UsartMode::Uart);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &sam4l::usart::USART0,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
+    let uart_mux = components::console::UartMuxComponent::new(
+        &sam4l::usart::USART0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
     uart_mux.initialize();
 
     hil::uart::Transmit::set_transmit_client(&sam4l::usart::USART0, uart_mux);
@@ -232,63 +231,32 @@ pub unsafe fn reset_handler() {
     let process_console =
         components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
             .finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // Initialize USART3 for UART for the nRF serialization link.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
-    let nrf_serialization =
-        components::nrf51822::Nrf51822Component::new(&sam4l::usart::USART3, &sam4l::gpio::PA[17])
-            .finalize(());
+    let nrf_serialization = components::nrf51822::Nrf51822Component::new(
+        &sam4l::usart::USART3,
+        &sam4l::gpio::PA[17],
+        board_kernel,
+    )
+    .finalize(());
 
     let ast = &sam4l::ast::AST;
-
-    let mux_alarm = static_init!(
-        MuxAlarm<'static, sam4l::ast::Ast>,
-        MuxAlarm::new(&sam4l::ast::AST)
-    );
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(ast)
+        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
     ast.configure(mux_alarm);
 
     let sensors_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C1));
     sam4l::i2c::I2C1.set_master_client(sensors_i2c);
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
-    let si7021_i2c = static_init!(
-        capsules::virtual_i2c::I2CDevice,
-        capsules::virtual_i2c::I2CDevice::new(sensors_i2c, 0x40)
-    );
-    let si7021_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    let si7021 = static_init!(
-        capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::si7021::SI7021::new(
-            si7021_i2c,
-            si7021_virtual_alarm,
-            &mut capsules::si7021::BUFFER
-        )
-    );
-    si7021_i2c.set_client(si7021);
-    hil::time::Alarm::set_client(si7021_virtual_alarm, si7021);
-
-    let temp = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(
-            si7021,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
-
-    let humidity = static_init!(
-        capsules::humidity::HumiditySensor<'static>,
-        capsules::humidity::HumiditySensor::new(
-            si7021,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
+    let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40)
+        .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
+    let temp = components::si7021::TemperatureComponent::new(board_kernel, si7021).finalize(());
+    let humidity = components::si7021::HumidityComponent::new(board_kernel, si7021).finalize(());
 
     // Configure the ISL29035, device address 0x44
     let ambient_light =
@@ -321,85 +289,38 @@ pub unsafe fn reset_handler() {
     );
     hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
-    // Initialize and enable SPI HAL
-    // Set up an SPI MUX, so there can be multiple clients
-    let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
-        MuxSpiMaster::new(&sam4l::spi::SPI)
-    );
-
-    sam4l::spi::SPI.set_client(mux_spi);
-    sam4l::spi::SPI.init();
-
-    // Create a virtualized client for SPI system call interface
-    // CS line is CS0
-    let syscall_spi_device = static_init!(
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-        VirtualSpiMasterDevice::new(mux_spi, 0)
-    );
-
-    // Create the SPI system call capsule, passing the client
-    let spi_syscalls = static_init!(
-        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-        capsules::spi::Spi::new(syscall_spi_device)
-    );
-
-    spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
-    syscall_spi_device.set_client(spi_syscalls);
+    // SPI
+    // Set up a SPI MUX, so there can be multiple clients.
+    let mux_spi = components::spi::SpiMuxComponent::new(&sam4l::spi::SPI)
+        .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
+    // Create the SPI system call capsule.
+    let spi_syscalls = components::spi::SpiSyscallComponent::new(mux_spi, 0)
+        .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 
     // LEDs
-    let led_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::Pin,
-            capsules::led::ActivationMode
-        ); 3],
-        [
-            (
-                &sam4l::gpio::PA[13],
-                capsules::led::ActivationMode::ActiveLow
-            ), // Red
-            (
-                &sam4l::gpio::PA[15],
-                capsules::led::ActivationMode::ActiveLow
-            ), // Green
-            (
-                &sam4l::gpio::PA[14],
-                capsules::led::ActivationMode::ActiveLow
-            ),
-        ]
-    ); // Blue
-    let led = static_init!(
-        capsules::led::LED<'static>,
-        capsules::led::LED::new(led_pins)
-    );
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        (
+            &sam4l::gpio::PA[13],
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        ), // Red
+        (
+            &sam4l::gpio::PA[15],
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        ), // Green
+        (
+            &sam4l::gpio::PA[14],
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        ) // Blue
+    ));
 
     // BUTTONs
-    let button_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); 1],
-        [(
-            static_init!(
-                gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&sam4l::gpio::PA[16])
-            )
-            .finalize(),
-            capsules::button::GpioMode::LowWhenPressed
-        )]
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!((
+            &sam4l::gpio::PA[16],
+            kernel::hil::gpio::ActivationMode::ActiveLow,
+            kernel::hil::gpio::FloatingState::PullNone
+        )),
     );
-
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for (pin, _) in button_pins.iter() {
-        pin.set_client(button);
-    }
 
     // Setup ADC
     let adc_channels = static_init!(
@@ -417,6 +338,7 @@ pub unsafe fn reset_handler() {
         capsules::adc::Adc<'static, sam4l::adc::Adc>,
         capsules::adc::Adc::new(
             &sam4l::adc::ADC0,
+            board_kernel.create_grant(&memory_allocation_capability),
             adc_channels,
             &mut capsules::adc::ADC_BUFFER1,
             &mut capsules::adc::ADC_BUFFER2,
@@ -429,41 +351,13 @@ pub unsafe fn reset_handler() {
     let rng = components::rng::RngComponent::new(board_kernel, &sam4l::trng::TRNG).finalize(());
 
     // set GPIO driver controlling remaining GPIO pins
-    let gpio_pins = static_init!(
-        [&'static dyn kernel::hil::gpio::InterruptValuePin; 4],
-        [
-            // D0
-            static_init!(
-                gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[14])
-            )
-            .finalize(),
-            // D1
-            static_init!(
-                gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[15])
-            )
-            .finalize(),
-            // D6
-            static_init!(
-                gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[11])
-            )
-            .finalize(),
-            // D7
-            static_init!(
-                gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[12])
-            )
-            .finalize(),
-        ]
-    );
-    let gpio = static_init!(
-        capsules::gpio::GPIO<'static>,
-        capsules::gpio::GPIO::new(
-            gpio_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
+    let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
+        components::gpio_component_helper!(
+            &sam4l::gpio::PC[14], // DO
+            &sam4l::gpio::PC[15], // D1
+            &sam4l::gpio::PC[11], // D6
+            &sam4l::gpio::PC[12]  // D7
+        ),
     );
 
     // CRC
@@ -486,8 +380,6 @@ pub unsafe fn reset_handler() {
     // unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
     // let debug_process_restart = static_init!(
     //     capsules::debug_process_restart::DebugProcessRestart<
-    //         'static,
-    //         sam4l::gpio::GPIOPin,
     //         ProcessMgmtCap,
     //     >,
     //     capsules::debug_process_restart::DebugProcessRestart::new(
@@ -497,6 +389,13 @@ pub unsafe fn reset_handler() {
     //     )
     // );
     // sam4l::gpio::PA[16].set_client(debug_process_restart);
+
+    // Configure application fault policy
+    let restart_policy = static_init!(
+        kernel::procs::ThresholdRestartThenPanic,
+        kernel::procs::ThresholdRestartThenPanic::new(4)
+    );
+    let fault_response = kernel::procs::FaultResponse::Restart(restart_policy);
 
     let hail = Hail {
         console: console,
@@ -517,27 +416,7 @@ pub unsafe fn reset_handler() {
         dac: dac,
     };
 
-    // Create virtual device for kernel debug.
-    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
-    debugger_uart.setup();
-    let debugger = static_init!(
-        kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(
-            debugger_uart,
-            &mut kernel::debug::OUTPUT_BUF,
-            &mut kernel::debug::INTERNAL_BUF,
-        )
-    );
-    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
-
-    let debug_wrapper = static_init!(
-        kernel::debug::DebugWriterWrapper,
-        kernel::debug::DebugWriterWrapper::new(debugger)
-    );
-    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
-
-    // Reset the nRF and setup the UART bus.
-    hail.nrf51822.reset();
+    // Setup the UART bus for nRF51 serialization..
     hail.nrf51822.initialize();
 
     process_console.start();
@@ -560,7 +439,7 @@ pub unsafe fn reset_handler() {
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        fault_response,
         &process_management_capability,
     );
     board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), &main_loop_capability);

@@ -1,29 +1,80 @@
-//! Component for Console, the generic serial interface.
+//! Components for Console, the generic serial interface, and for multiplexed access
+//! to UART.
 //!
-//! This provides one Component, ConsoleComponent, which implements
-//! a buffered read/write console over a serial port. This is typically
-//! USART3 (the DEBUG USB connector). It attaches kernel debug output
-//! to this console (for panic!, print!, debug!, etc.).
+//!
+//! This provides two Components, `ConsoleComponent`, which implements a buffered
+//! read/write console over a serial port, and `UartMuxComponent`, which provides
+//! multiplexed access to hardware UART. As an example, the serial port used for
+//! console on Imix is typically USART3 (the DEBUG USB connector).
 //!
 //! Usage
 //! -----
 //! ```rust
-//! let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize();
-//! let rf233_spi = SpiComponent::new(mux_spi).finalize();
+//! let uart_mux = UartMuxComponent::new(&sam4l::usart::USART3,
+//!                                      115200,
+//!                                      deferred_caller).finalize(());
+//! let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
 //! ```
-
 // Author: Philip Levis <pal@cs.stanford.edu>
-// Last modified: 6/20/2018
-
-#![allow(dead_code)] // Components are intended to be conditionally included
+// Last modified: 1/08/2020
 
 use capsules::console;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::hil::uart;
 use kernel::static_init;
+
+pub struct UartMuxComponent {
+    uart: &'static dyn uart::Uart<'static>,
+    baud_rate: u32,
+    deferred_caller: &'static DynamicDeferredCall,
+}
+
+impl UartMuxComponent {
+    pub fn new(
+        uart: &'static dyn uart::Uart<'static>,
+        baud_rate: u32,
+        deferred_caller: &'static DynamicDeferredCall,
+    ) -> UartMuxComponent {
+        UartMuxComponent {
+            uart,
+            baud_rate,
+            deferred_caller,
+        }
+    }
+}
+
+impl Component for UartMuxComponent {
+    type StaticInput = ();
+    type Output = &'static MuxUart<'static>;
+
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+        let uart_mux = static_init!(
+            MuxUart<'static>,
+            MuxUart::new(
+                self.uart,
+                &mut capsules::virtual_uart::RX_BUF,
+                self.baud_rate,
+                self.deferred_caller,
+            )
+        );
+        uart_mux.initialize_callback_handle(
+            self.deferred_caller
+                .register(uart_mux)
+                .expect("no deferred call slot available for uart mux"),
+        );
+
+        uart_mux.initialize();
+        hil::uart::Transmit::set_transmit_client(self.uart, uart_mux);
+        hil::uart::Receive::set_receive_client(self.uart, uart_mux);
+
+        uart_mux
+    }
+}
 
 pub struct ConsoleComponent {
     board_kernel: &'static kernel::Kernel,
@@ -46,7 +97,7 @@ impl Component for ConsoleComponent {
     type StaticInput = ();
     type Output = &'static console::Console<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         // Create virtual device for console.
@@ -64,25 +115,6 @@ impl Component for ConsoleComponent {
         );
         hil::uart::Transmit::set_transmit_client(console_uart, console);
         hil::uart::Receive::set_receive_client(console_uart, console);
-
-        // Create virtual device for kernel debug.
-        let debugger_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, false));
-        debugger_uart.setup();
-        let debugger = static_init!(
-            kernel::debug::DebugWriter,
-            kernel::debug::DebugWriter::new(
-                debugger_uart,
-                &mut kernel::debug::OUTPUT_BUF,
-                &mut kernel::debug::INTERNAL_BUF,
-            )
-        );
-        hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
-
-        let debug_wrapper = static_init!(
-            kernel::debug::DebugWriterWrapper,
-            kernel::debug::DebugWriterWrapper::new(debugger)
-        );
-        kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
         console
     }

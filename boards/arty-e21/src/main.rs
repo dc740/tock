@@ -5,8 +5,9 @@
 #![feature(const_fn, in_band_lifetimes)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::component::Component;
 use kernel::hil;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -25,11 +26,14 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 8192] = [0; 8192];
+static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None];
+
+// Reference to the chip for panic dumps.
+static mut CHIP: Option<&'static arty_e21::chip::ArtyExx> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -80,6 +84,7 @@ pub unsafe fn reset_handler() {
     rv32i::init_memory();
 
     let chip = static_init!(arty_e21::chip::ArtyExx, arty_e21::chip::ArtyExx::new());
+    CHIP = Some(chip);
     chip.initialize();
 
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -87,6 +92,14 @@ pub unsafe fn reset_handler() {
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -96,58 +109,27 @@ pub unsafe fn reset_handler() {
     );
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &arty_e21::uart::UART0,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
-    uart_mux.initialize();
+    let uart_mux = components::console::UartMuxComponent::new(
+        &arty_e21::uart::UART0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
 
-    hil::uart::Transmit::set_transmit_client(&arty_e21::uart::UART0, uart_mux);
-    hil::uart::Receive::set_receive_client(&arty_e21::uart::UART0, uart_mux);
-
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-    let console = static_init!(
-        capsules::console::Console<'static>,
-        capsules::console::Console::new(
-            console_uart,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_cap)
-        )
-    );
-    hil::uart::Transmit::set_transmit_client(console_uart, console);
-    hil::uart::Receive::set_receive_client(console_uart, console);
+    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        MuxAlarm::new(&rv32i::machine_timer::MACHINETIMER)
+        MuxAlarm::new(&arty_e21::timer::MACHINETIMER)
     );
-    hil::time::Alarm::set_client(&rv32i::machine_timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_client(&arty_e21::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
-    let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        VirtualMuxAlarm::new(mux_alarm)
+    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm).finalize(
+        components::alarm_component_helper!(rv32i::machine_timer::MachineTimer),
     );
-    let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
-            'static,
-            VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        >,
-        capsules::alarm::AlarmDriver::new(
-            virtual_alarm_user,
-            board_kernel.create_grant(&memory_allocation_cap)
-        )
-    );
-    hil::time::Alarm::set_client(virtual_alarm_user, alarm);
 
     // TEST for timer
     //
@@ -165,23 +147,23 @@ pub unsafe fn reset_handler() {
     let led_pins = static_init!(
         [(
             &'static dyn kernel::hil::gpio::Pin,
-            capsules::led::ActivationMode
+            kernel::hil::gpio::ActivationMode
         ); 3],
         [
             (
                 // Red
                 &arty_e21::gpio::PORT[0],
-                capsules::led::ActivationMode::ActiveHigh
+                kernel::hil::gpio::ActivationMode::ActiveHigh
             ),
             (
                 // Green
                 &arty_e21::gpio::PORT[1],
-                capsules::led::ActivationMode::ActiveHigh
+                kernel::hil::gpio::ActivationMode::ActiveHigh
             ),
             (
                 // Blue
                 &arty_e21::gpio::PORT[2],
-                capsules::led::ActivationMode::ActiveHigh
+                kernel::hil::gpio::ActivationMode::ActiveHigh
             ),
         ]
     );
@@ -191,30 +173,13 @@ pub unsafe fn reset_handler() {
     );
 
     // BUTTONs
-    let button_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); 1],
-        [(
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21::gpio::PORT[4])
-            )
-            .finalize(),
-            capsules::button::GpioMode::HighWhenPressed
-        )]
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!((
+            &arty_e21::gpio::PORT[4],
+            kernel::hil::gpio::ActivationMode::ActiveHigh,
+            kernel::hil::gpio::FloatingState::PullNone
+        )),
     );
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_cap)
-        )
-    );
-    for &(btn, _) in button_pins.iter() {
-        btn.set_client(button);
-    }
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
@@ -257,23 +222,7 @@ pub unsafe fn reset_handler() {
     };
 
     // Create virtual device for kernel debug.
-    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
-    debugger_uart.setup();
-    let debugger = static_init!(
-        kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(
-            debugger_uart,
-            &mut kernel::debug::OUTPUT_BUF,
-            &mut kernel::debug::INTERNAL_BUF,
-        )
-    );
-    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
-
-    let debug_wrapper = static_init!(
-        kernel::debug::DebugWriterWrapper,
-        kernel::debug::DebugWriterWrapper::new(debugger)
-    );
-    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // arty_e21::uart::UART0.initialize_gpio_pins(&arty_e21::gpio::PORT[17], &arty_e21::gpio::PORT[16]);
 

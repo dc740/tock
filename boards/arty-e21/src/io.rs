@@ -3,10 +3,12 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
 use kernel::debug;
+use kernel::debug::IoWrite;
 use kernel::hil::gpio;
 use kernel::hil::led;
 use rv32i;
 
+use crate::CHIP;
 use crate::PROCESSES;
 
 struct Writer;
@@ -17,6 +19,12 @@ impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
         debug!("{}", s);
         Ok(())
+    }
+}
+
+impl IoWrite for Writer {
+    fn write(&mut self, buf: &[u8]) {
+        let _ = self.write_str(unsafe { str::from_utf8_unchecked(buf) });
     }
 }
 
@@ -36,5 +44,12 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let led_red = &mut led::LedLow::new(&mut arty_e21::gpio::PORT[22]);
     let writer = &mut WRITER;
-    debug::panic(&mut [led_red], writer, pi, &rv32i::support::nop, &PROCESSES)
+    debug::panic(
+        &mut [led_red],
+        writer,
+        pi,
+        &rv32i::support::nop,
+        &PROCESSES,
+        &CHIP,
+    )
 }

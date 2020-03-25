@@ -6,18 +6,21 @@
 //!
 //! Most `unsafe` code is in this kernel crate.
 
-#![feature(core_intrinsics, ptr_internals, const_fn)]
-#![feature(panic_info_message)]
-#![feature(in_band_lifetimes, crate_visibility_modifier)]
-#![feature(associated_type_defaults)]
+#![feature(
+    core_intrinsics,
+    ptr_internals,
+    const_fn,
+    panic_info_message,
+    in_band_lifetimes,
+    crate_visibility_modifier,
+    associated_type_defaults
+)]
 #![warn(unreachable_pub)]
 #![no_std]
 
 pub mod capabilities;
-#[macro_use]
 pub mod common;
 pub mod component;
-#[macro_use]
 pub mod debug;
 pub mod hil;
 pub mod introspection;
@@ -25,6 +28,7 @@ pub mod ipc;
 pub mod syscall;
 
 mod callback;
+mod config;
 mod driver;
 mod grant;
 mod mem;
@@ -51,5 +55,8 @@ pub use crate::sched::Kernel;
 // processes.
 /// Publicly available process-related objects.
 pub mod procs {
-    pub use crate::process::{load_processes, FaultResponse, FunctionCall, Process, ProcessType};
+    pub use crate::process::{
+        load_processes, AlwaysRestart, Error, FaultResponse, FunctionCall, Process,
+        ProcessRestartPolicy, ProcessType, ThresholdRestart, ThresholdRestartThenPanic,
+    };
 }

@@ -12,46 +12,45 @@ mod imix_components;
 use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
-use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 
-use components::alarm::AlarmDriverComponent;
-use components::console::ConsoleComponent;
+use components;
+use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
+use components::console::{ConsoleComponent, UartMuxComponent};
 use components::crc::CrcComponent;
+use components::debug_writer::DebugWriterComponent;
+use components::gpio::GpioComponent;
 use components::isl29035::AmbientLightComponent;
+use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
+use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
+use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
 use imix_components::analog_comparator::AcComponent;
-use imix_components::button::ButtonComponent;
 use imix_components::fxos8700::NineDofComponent;
-use imix_components::gpio::GpioComponent;
-use imix_components::led::LedComponent;
 use imix_components::nonvolatile_storage::NonvolatileStorageComponent;
 use imix_components::radio::RadioComponent;
 use imix_components::rf233::RF233Component;
-use imix_components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
-use imix_components::spi::{SpiComponent, SpiSyscallComponent};
-use imix_components::udp_6lowpan::UDPComponent;
+use imix_components::udp_driver::UDPDriverComponent;
+use imix_components::udp_mux::UDPMuxComponent;
 use imix_components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
 ///
 /// Note: Use of this module will trample any other USART3 configuration.
-#[macro_use]
 pub mod io;
 
 // Unit Tests for drivers.
@@ -81,6 +80,12 @@ mod power;
 #[allow(dead_code)]
 mod virtual_uart_rx_test;
 
+#[allow(dead_code)]
+mod log_test;
+
+#[allow(dead_code)]
+mod linear_log_test;
+
 // State for loading apps.
 
 const NUM_PROCS: usize = 4;
@@ -107,6 +112,7 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
+static mut CHIP: Option<&'static sam4l::chip::Sam4l> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -296,37 +302,34 @@ pub unsafe fn reset_handler() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+
     // # CONSOLE
     // Create a shared UART channel for the consoles and for kernel debug.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &sam4l::usart::USART3,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
-
-    uart_mux.initialize();
-
-    hil::uart::Transmit::set_transmit_client(&sam4l::usart::USART3, uart_mux);
-    hil::uart::Receive::set_receive_client(&sam4l::usart::USART3, uart_mux);
+    let uart_mux =
+        UartMuxComponent::new(&sam4l::usart::USART3, 115200, dynamic_deferred_caller).finalize(());
 
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
     let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    DebugWriterComponent::new(uart_mux).finalize(());
 
     // Allow processes to communicate over BLE through the nRF51822
     sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);
     let nrf_serialization =
-        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07]).finalize(());
+        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07], board_kernel)
+            .finalize(());
 
     // # TIMER
     let ast = &sam4l::ast::AST;
-    let mux_alarm = static_init!(
-        MuxAlarm<'static, sam4l::ast::Ast>,
-        MuxAlarm::new(&sam4l::ast::AST)
-    );
+    let mux_alarm = AlarmMuxComponent::new(ast)
+        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
     ast.configure(mux_alarm);
     let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
@@ -337,21 +340,20 @@ pub unsafe fn reset_handler() {
 
     let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm)
         .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
-    let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize(());
+    let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40)
+        .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
     let temp = TemperatureComponent::new(board_kernel, si7021).finalize(());
     let humidity = HumidityComponent::new(board_kernel, si7021).finalize(());
     let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize(());
 
     // SPI MUX, SPI syscall driver and RF233 radio
-    let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
-        MuxSpiMaster::new(&sam4l::spi::SPI)
-    );
-    sam4l::spi::SPI.set_client(mux_spi);
-    sam4l::spi::SPI.init();
+    let mux_spi = components::spi::SpiMuxComponent::new(&sam4l::spi::SPI)
+        .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
 
-    let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize(());
-    let rf233_spi = SpiComponent::new(mux_spi).finalize(());
+    let spi_syscalls = SpiSyscallComponent::new(mux_spi, 3)
+        .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
+    let rf233_spi = SpiComponent::new(mux_spi, 3)
+        .finalize(components::spi_component_helper!(sam4l::spi::SpiHw));
     let rf233 = RF233Component::new(
         rf233_spi,
         &sam4l::gpio::PA[09], // reset
@@ -362,11 +364,28 @@ pub unsafe fn reset_handler() {
     )
     .finalize(());
 
-    let adc = AdcComponent::new().finalize(());
-    let gpio = GpioComponent::new(board_kernel).finalize(());
+    let adc = AdcComponent::new(board_kernel).finalize(());
+    let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
+        &sam4l::gpio::PC[31],
+        &sam4l::gpio::PC[30],
+        &sam4l::gpio::PC[29],
+        &sam4l::gpio::PC[28],
+        &sam4l::gpio::PC[27],
+        &sam4l::gpio::PC[26],
+        &sam4l::gpio::PA[20]
+    ));
 
-    let led = LedComponent::new().finalize(());
-    let button = ButtonComponent::new(board_kernel).finalize(());
+    let led = LedsComponent::new().finalize(components::led_component_helper!((
+        &sam4l::gpio::PC[10],
+        kernel::hil::gpio::ActivationMode::ActiveHigh
+    )));
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!((
+            &sam4l::gpio::PC[24],
+            kernel::hil::gpio::ActivationMode::ActiveLow,
+            kernel::hil::gpio::FloatingState::PullNone
+        )),
+    );
     let crc = CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)
         .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
     let analog_comparator = AcComponent::new().finalize(());
@@ -383,8 +402,14 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (radio_driver, mux_mac) =
-        RadioComponent::new(board_kernel, rf233, PAN_ID, serial_num_bottom_16).finalize(());
+    let (radio_driver, mux_mac) = RadioComponent::new(
+        board_kernel,
+        rf233,
+        PAN_ID,
+        serial_num_bottom_16, //comment out for dual rx test only
+                              //49138, //comment in for dual rx test only
+    )
+    .finalize(());
 
     let usb_driver = UsbComponent::new(board_kernel).finalize(());
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize(());
@@ -404,15 +429,25 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let udp_driver = UDPComponent::new(
-        board_kernel,
+    let (udp_send_mux, udp_recv_mux, udp_port_table) = UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
-        src_mac_from_serial_num,
+        src_mac_from_serial_num, //comment out for dual rx test only
+        //MacAddress::Short(49138), //comment in for dual rx test only
         local_ip_ifaces,
         mux_alarm,
+    )
+    .finalize(());
+
+    // UDP driver initialization happens here
+    let udp_driver = UDPDriverComponent::new(
+        board_kernel,
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        local_ip_ifaces,
     )
     .finalize(());
 
@@ -441,9 +476,9 @@ pub unsafe fn reset_handler() {
     };
 
     let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
+    CHIP = Some(chip);
 
-    // Need to reset the nRF on boot, toggle it's SWDIO
-    imix.nrf51822.reset();
+    // Need to initialize the UART for the nRF51 serialization.
     imix.nrf51822.initialize();
 
     // These two lines need to be below the creation of the chip for
@@ -464,8 +499,14 @@ pub unsafe fn reset_handler() {
     // aes_ccm_test::run();
     // aes_test::run_aes128_ctr();
     // aes_test::run_aes128_cbc();
+    // log_test::run(mux_alarm, dynamic_deferred_caller);
+    // linear_log_test::run(mux_alarm, dynamic_deferred_caller);
 
     debug!("Initialization complete. Entering main loop");
+
+    // Only include to run kernel tests, do not include during normal operation
+    // let udp_lowpan_test =
+    //     udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

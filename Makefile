@@ -18,6 +18,7 @@ usage:
 	@echo "  allboards: Compiles Tock for all supported boards"
 	@echo "   allcheck: Checks, but does not compile, Tock for all supported boards"
 	@echo "     alldoc: Builds Tock documentation for all boards"
+	@echo "      audit: Audit Cargo dependencies for all kernel sources"
 	@echo "         ci: Run all continuous integration tests"
 	@echo "      clean: Clean all builds"
 	@echo "     format: Runs the rustfmt tool on all kernel sources"
@@ -45,11 +46,23 @@ ci-travis:
 	@printf "$$(tput bold)******************$$(tput sgr0)\n"
 	@CI=true ./tools/run_cargo_fmt.sh diff
 	@./tools/check_wildcard_imports.sh
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Tools *$$(tput sgr0)\n"
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@for f in `./tools/list_tools.sh`; do echo "$$(tput bold)Build & Test $$f"; cd tools/$$f && CI=true RUSTFLAGS="-D warnings" cargo build --all-targets || exit 1; cd - > /dev/null; done
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Libraries *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
 	@cd libraries/tock-cells && CI=true cargo test
 	@cd libraries/tock-register-interface && CI=true cargo test
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Archs *$$(tput sgr0)\n"
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@for f in `./tools/list_archs.sh`; do echo "$$(tput bold)Test $$f"; cd arch/$$f; CI=true TOCK_KERNEL_VERSION=ci_test cargo test || exit 1; cd ../..; done
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Chips *$$(tput sgr0)\n"
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Test $$f"; cd chips/$$f; CI=true TOCK_KERNEL_VERSION=ci_test cargo test || exit 1; cd ../..; done
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Syntax *$$(tput sgr0)\n"
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
@@ -85,9 +98,16 @@ ci-netlify:
 .PHONY: ci
 ci: ci-travis ci-netlify
 
+.PHONY: audit
+audit:
+	@for f in `./tools/list_lock.sh`; do echo "$$(tput bold)Auditing $$f"; (cd "$$f" && cargo audit || exit 1); done
+
 .PHONY: clean
 clean:
-	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Clean $$f"; $(MAKE) -C "boards/$$f" clean || exit 1; done
+	@for f in `./tools/list_archs.sh`; do echo "$$(tput bold)Clean arch/$$f"; cargo clean --manifest-path "arch/$$f/Cargo.toml" || exit 1; done
+	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Clean chips/$$f"; cargo clean --manifest-path "chips/$$f/Cargo.toml" || exit 1; done
+	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Clean boards/$$f"; $(MAKE) -C "boards/$$f" clean || exit 1; done
+	@for f in `./tools/list_tools.sh`; do echo "$$(tput bold)Clean tools/$$f"; cargo clean --manifest-path "tools/$$f/Cargo.toml" || exit 1; done
 	@cd kernel && echo "$$(tput bold)Clean kernel" && cargo clean
 	@cd libraries/tock-cells && echo "$$(tput bold)Clean libraries/tock-cells" && cargo clean
 	@cd libraries/tock-register-interface && echo "$$(tput bold)Clean libraries/tock-register-interface" && cargo clean

@@ -1,6 +1,10 @@
 sudo: false
 language: rust
 
+addons:
+  apt:
+    packages: libusb-1.0-0-dev
+
 
 # bors default configuration:
 #branches:
@@ -28,7 +32,7 @@ os:
 # If you change this, you must also change Getting_Started.md, Makefile.common,
 # .vscode/settings.json, and tools/netlify-build.sh.
 rust:
-  - nightly-2019-10-17
+  - nightly-2020-03-06
 
 before_script:
   - npm install -g markdown-toc

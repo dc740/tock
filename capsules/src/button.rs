@@ -62,37 +62,30 @@ pub const DRIVER_NUM: usize = driver::NUM::Button as usize;
 /// that app has an interrupt registered for that button.
 pub type SubscribeMap = u32;
 
-/// Whether the GPIOs for the buttons on this platform are low when the button
-/// is pressed or high.
-#[derive(Clone, Copy)]
-pub enum GpioMode {
-    LowWhenPressed,
-    HighWhenPressed,
-}
-
-/// Values that are passed to userspace to identify if the button is pressed
-/// or not.
-#[derive(Clone, Copy)]
-pub enum ButtonState {
-    NotPressed = 0,
-    Pressed = 1,
-}
-
 /// Manages the list of GPIO pins that are connected to buttons and which apps
 /// are listening for interrupts from which buttons.
 pub struct Button<'a> {
-    pins: &'a [(&'a dyn gpio::InterruptValuePin, GpioMode)],
+    pins: &'a [(
+        &'a dyn gpio::InterruptValuePin,
+        gpio::ActivationMode,
+        gpio::FloatingState,
+    )],
     apps: Grant<(Option<Callback>, SubscribeMap)>,
 }
 
 impl<'a> Button<'a> {
     pub fn new(
-        pins: &'a [(&'a dyn gpio::InterruptValuePin, GpioMode)],
+        pins: &'a [(
+            &'a dyn gpio::InterruptValuePin,
+            gpio::ActivationMode,
+            gpio::FloatingState,
+        )],
         grant: Grant<(Option<Callback>, SubscribeMap)>,
     ) -> Button<'a> {
-        for (i, &(pin, _)) in pins.iter().enumerate() {
+        for (i, &(pin, _, floating_state)) in pins.iter().enumerate() {
             pin.make_input();
             pin.set_value(i as u32);
+            pin.set_floating_state(floating_state);
         }
 
         Button {
@@ -101,19 +94,9 @@ impl<'a> Button<'a> {
         }
     }
 
-    fn get_button_state(&self, pin_num: u32) -> ButtonState {
-        let index = pin_num as usize;
-        let pin_value = self.pins[index].0.read();
-        match self.pins[index].1 {
-            GpioMode::LowWhenPressed => match pin_value {
-                false => ButtonState::Pressed,
-                true => ButtonState::NotPressed,
-            },
-            GpioMode::HighWhenPressed => match pin_value {
-                false => ButtonState::NotPressed,
-                true => ButtonState::Pressed,
-            },
-        }
+    fn get_button_state(&self, pin_num: u32) -> gpio::ActivationState {
+        let pin = &self.pins[pin_num as usize];
+        pin.0.read_activation(pin.1)
     }
 }
 

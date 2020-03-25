@@ -13,8 +13,9 @@
 #![feature(asm)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::component::Component;
 use kernel::hil;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -27,22 +28,29 @@ pub mod io;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] =
     [None, None, None, None];
 
+// Reference to the chip for panic dumps.
+static mut CHIP: Option<&'static e310x::chip::E310x> = None;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 8192] = [0; 8192];
+static mut APP_MEMORY: [u8; 5 * 1024] = [0; 5 * 1024];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x800] = [0; 0x800];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
     console: &'static capsules::console::Console<'static>,
+    lldb: &'static capsules::low_level_debug::LowLevelDebug<
+        'static,
+        capsules::virtual_uart::UartDevice<'static>,
+    >,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
@@ -58,6 +66,7 @@ impl Platform for HiFive1 {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             _ => f(None),
         }
     }
@@ -90,6 +99,14 @@ pub unsafe fn reset_handler() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
         Some(&e310x::gpio::PORT[22]), // Red
@@ -98,12 +115,11 @@ pub unsafe fn reset_handler() {
     );
 
     let chip = static_init!(e310x::chip::E310x, e310x::chip::E310x::new());
+    CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
 
-    // Need to enable all interrupts for Tock Kernel
-    chip.enable_plic_interrupts();
     // enable interrupts globally
     csr::CSR
         .mie
@@ -111,19 +127,12 @@ pub unsafe fn reset_handler() {
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &e310x::uart::UART0,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
-
-    uart_mux.initialize();
-
-    hil::uart::Transmit::set_transmit_client(&e310x::uart::UART0, uart_mux);
-    hil::uart::Receive::set_receive_client(&e310x::uart::UART0, uart_mux);
+    let uart_mux = components::console::UartMuxComponent::new(
+        &e310x::uart::UART0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
 
     // Initialize some GPIOs which are useful for debugging.
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[22]);
@@ -135,34 +144,15 @@ pub unsafe fn reset_handler() {
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[21]);
     hil::gpio::Pin::clear(&e310x::gpio::PORT[21]);
 
-    // Create virtual device for kernel debug.
-    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
-    debugger_uart.setup();
-    let debugger = static_init!(
-        kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(
-            debugger_uart,
-            &mut kernel::debug::OUTPUT_BUF,
-            &mut kernel::debug::INTERNAL_BUF,
-        )
-    );
-    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
-
-    let debug_wrapper = static_init!(
-        kernel::debug::DebugWriterWrapper,
-        kernel::debug::DebugWriterWrapper::new(debugger)
-    );
-    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
-
     e310x::uart::UART0.initialize_gpio_pins(&e310x::gpio::PORT[17], &e310x::gpio::PORT[16]);
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        MuxAlarm::new(&rv32i::machine_timer::MACHINETIMER)
+        MuxAlarm::new(&e310x::timer::MACHINETIMER)
     );
-    hil::time::Alarm::set_client(&rv32i::machine_timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_client(&e310x::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
@@ -181,20 +171,12 @@ pub unsafe fn reset_handler() {
     );
     hil::time::Alarm::set_client(virtual_alarm_user, alarm);
 
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-    let console = static_init!(
-        capsules::console::Console<'static>,
-        capsules::console::Console::new(
-            console_uart,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_cap)
-        )
-    );
-    hil::uart::Transmit::set_transmit_client(console_uart, console);
-    hil::uart::Receive::set_receive_client(console_uart, console);
+    // Setup the console.
+    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    // Create the debugger object that handles calls to `debug!()`.
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+
+    let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
 
     debug!("HiFive1 initialization complete. Entering main loop");
 
@@ -208,6 +190,7 @@ pub unsafe fn reset_handler() {
     let hifive1 = HiFive1 {
         console: console,
         alarm: alarm,
+        lldb: lldb,
     };
 
     kernel::procs::load_processes(

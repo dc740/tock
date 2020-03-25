@@ -25,6 +25,7 @@ Tock Guides
 - **[Syscalls](Syscalls.md)** - Kernel/Userland abstraction.
 - **[Userland](Userland.md)** - Description of userland applications.
 - **[Networking Stack](Networking_Stack.md)** - Design of the networking stack in Tock.
+- **[Configuration](Configuration.md)** - Configuration options for the kernel.
 
 ### Interface Details
 - **[Syscall Interfaces](syscalls)** - API between userland and the kernel.
@@ -35,7 +36,10 @@ Tock Guides
 - **[Porting Tock](Porting.md)** - Guide to add new platforms.
 - **[Out of Tree Boards](OutOfTree.md)** - Best practices for maintaining boards not in Tock master.
 - **[Debugging Help](debugging)** - Guides for various debugging techniques.
+- **[Style](Style.md)** - Stylistic aspects of Tock code.
 
 ### Management of Tock
+- **[Core Team](CoreTeam.md)** - Tock core team members and information.
+- **[Working Groups](wg)** - Development groups for specific aspects of Tock.
 - **[Code Review Process](CodeReview.md)** - Process for pull request reviews and Tock releases.
 

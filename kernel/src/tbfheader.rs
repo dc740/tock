@@ -145,10 +145,10 @@ impl TbfHeader {
     }
 
     /// Get the name of the app.
-    crate fn get_package_name(&self) -> &'static str {
+    crate fn get_package_name(&self) -> Option<&'static str> {
         match *self {
-            TbfHeader::TbfHeaderV2(hd) => hd.package_name.unwrap_or(""),
-            _ => "",
+            TbfHeader::TbfHeaderV2(hd) => hd.package_name,
+            _ => None,
         }
     }
 
@@ -232,11 +232,7 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
             // identified by not having any options.
             if remaining_length == 0 {
                 // Just padding.
-                if checksum == tbf_header_base.checksum {
-                    Some(TbfHeader::Padding(tbf_header_base))
-                } else {
-                    None
-                }
+                Some(TbfHeader::Padding(tbf_header_base))
             } else {
                 // This is an actual app.
 

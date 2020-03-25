@@ -1,10 +1,11 @@
+use core::fmt::Write;
 use kernel;
 use kernel::debug;
 use rv32i;
-use rv32i::machine_timer;
 
 use crate::gpio;
 use crate::interrupts;
+use crate::timer;
 use crate::uart;
 
 extern "C" {
@@ -12,6 +13,7 @@ extern "C" {
 }
 
 pub struct ArtyExx {
+    pmp: rv32i::pmp::PMPConfig,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
 }
@@ -24,6 +26,7 @@ impl ArtyExx {
         let in_use_interrupts: u64 = 0x1FFFF0080;
 
         ArtyExx {
+            pmp: rv32i::pmp::PMPConfig::new(4),
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             clic: rv32i::clic::Clic::new(in_use_interrupts),
         }
@@ -33,42 +36,11 @@ impl ArtyExx {
         self.clic.enable_all();
     }
 
-    /// Configure the PMP to allow all accesses in both machine mode (the
-    /// default) and in user mode.
-    ///
-    /// This needs to be replaced with a real PMP driver. See
-    /// https://github.com/tock/tock/issues/1135
-    pub unsafe fn disable_pmp(&self) {
-        asm!("
-            // PMP PMP PMP
-            // PMP PMP PMP
-            // PMP PMP PMP
-            // PMP PMP PMP
-            // TODO: Add a real PMP driver!!
-            // Take some time to disable the PMP.
-
-            // Set the first region address to 0xFFFFFFFF. When using top-of-range mode
-            // this will include the entire address space.
-            lui  t0, %hi(0xFFFFFFFF)
-            addi t0, t0, %lo(0xFFFFFFFF)
-            csrw 0x3b0, t0    // CSR=pmpaddr0
-
-            // Set the first region to use top-of-range and allow everything.
-            // This is equivalent to:
-            // R=1, W=1, X=1, A=01, L=0
-            li   t0, 0x0F
-            csrw 0x3a0, t0    // CSR=pmpcfg0
-        "
-        :
-        :
-        :
-        : "volatile");
-    }
-
     /// By default the machine timer is enabled and will trigger interrupts. To
     /// prevent that we can make the compare register very large to effectively
     /// stop the interrupt from triggering, and then the machine timer can be
     /// used later as needed.
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn disable_machine_timer(&self) {
         asm!("
             // Initialize machine timer mtimecmp to disable the machine timer
@@ -85,11 +57,18 @@ impl ArtyExx {
         : "volatile");
     }
 
+    // Mock implementation for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    pub unsafe fn disable_machine_timer(&self) {
+        unimplemented!()
+    }
+
     /// Setup the function that should run when a trap happens.
     ///
     /// This needs to be chip specific because how the CLIC works is configured
     /// when the trap handler address is specified in mtvec, and that is only
     /// valid for platforms with a CLIC.
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn configure_trap_handler(&self) {
         asm!("
             // The csrw instruction writes a Control and Status Register (CSR)
@@ -110,30 +89,28 @@ impl ArtyExx {
         : "volatile");
     }
 
+    // Mock implementation for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    pub unsafe fn configure_trap_handler(&self) {
+        unimplemented!()
+    }
+
     /// Generic helper initialize function to setup all of the chip specific
     /// operations. Different boards can call the functions that `initialize()`
     /// calls directly if it needs to use a custom setup operation.
     pub unsafe fn initialize(&self) {
-        self.disable_pmp();
         self.disable_machine_timer();
         self.configure_trap_handler();
     }
 }
 
 impl kernel::Chip for ArtyExx {
-    // While there is initial support for a PMP driver (as of 2019-10-04), it is not
-    // complete, and while it should disable the PMP, it seems to cause some negative
-    // side effects (context switching does not work correctly) on the Arty-E21 platform.
-    //
-    // TODO: implement the PMP driver and add it here `type MPU = rv32i::pmp::PMPConfig;`.
-    //
-    // See https://github.com/tock/tock/pull/1382 for (a little) more information.
-    type MPU = ();
+    type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
-        &()
+        &self.pmp
     }
 
     fn systick(&self) -> &Self::SysTick {
@@ -148,7 +125,7 @@ impl kernel::Chip for ArtyExx {
         unsafe {
             while let Some(interrupt) = self.clic.next_pending() {
                 match interrupt {
-                    interrupts::MTIP => machine_timer::MACHINETIMER.handle_interrupt(),
+                    interrupts::MTIP => timer::MACHINETIMER.handle_interrupt(),
 
                     interrupts::GPIO0 => gpio::PORT[3].handle_interrupt(),
                     interrupts::GPIO1 => gpio::PORT[3].handle_interrupt(),
@@ -195,6 +172,10 @@ impl kernel::Chip for ArtyExx {
     {
         rv32i::support::atomic(f)
     }
+
+    unsafe fn print_state(&self, write: &mut dyn Write) {
+        rv32i::print_riscv_state(write);
+    }
 }
 
 /// Trap handler for board/chip specific code.
@@ -202,6 +183,7 @@ impl kernel::Chip for ArtyExx {
 /// For the arty-e21 this gets called when an interrupt occurs while the chip is
 /// in kernel mode. All we need to do is check which interrupt occurred and
 /// disable it.
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[export_name = "_start_trap_rust"]
 pub extern "C" fn start_trap_rust() {
     let mut mcause: i32;
