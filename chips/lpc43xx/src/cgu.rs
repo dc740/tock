@@ -555,7 +555,7 @@ IDIVE_CTRL [
         IDIVA = 12
     ]
 ],
-BASE_CLK [
+pub BASE_CLK [
     /// Output stage power down
     PD OFFSET(0) NUMBITS(1) [
         /// Enabled. Output stage enabled (default)

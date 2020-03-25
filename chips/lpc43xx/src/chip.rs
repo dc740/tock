@@ -1,6 +1,7 @@
 //! Interrupt mapping and DMA channel setup.
 use cortexm4;
 use kernel::Chip;
+use core::fmt::Write;
 use crate::atimer;
 use crate::gpio;
 use crate::nvic;
@@ -87,4 +88,7 @@ impl Chip for Lpc43xx {
         &self.userspace_kernel_boundary
     }
 
+    unsafe fn print_state(&self, write: &mut dyn Write) {
+        cortexm4::print_cortexm4_state(write);
+    }
 }

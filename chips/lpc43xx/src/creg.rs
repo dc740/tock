@@ -343,7 +343,7 @@ DMAMUX [
         Timer3Match0 = 3
     ]
 ],
-FLASHCFG [
+pub FLASHCFG [
     /// Flash access time. The value of this field plus 1 gives the number of BASE_M4_CL
     FLASHTIM OFFSET(12) NUMBITS(4) [
         /// 1 BASE_M4_CLK clock. Use for BASE_M4_CLK up to 21 MHz.

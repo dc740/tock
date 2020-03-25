@@ -476,14 +476,14 @@ impl GPIOPin {
 
     pub fn read(&self) -> bool {
         let b = &GPIO_PORT_BASE.b[self.gpio_port as usize][self.gpio_pin as usize];
-		b.get() != 0
+        b.get() != 0
     }
 
     pub fn toggle(&self) -> bool {
-		let b = &GPIO_PORT_BASE.b[self.gpio_port as usize][self.gpio_pin as usize];
+        let b = &GPIO_PORT_BASE.b[self.gpio_port as usize][self.gpio_pin as usize];
         let val = self.read();
-		b.set((val as u8 == 0) as u8);
-        (val as u8 == 0)
+        b.set((val as u8 == 0) as u8);
+        val as u8 == 0
     }
 
     pub fn set(&self) {
@@ -493,7 +493,7 @@ impl GPIOPin {
 
     pub fn clear(&self) {
         let b = &GPIO_PORT_BASE.b[self.gpio_port as usize][self.gpio_pin as usize];
-		b.set(0)
+        b.set(0)
     }
     
     /// Sets the interrupt mode registers. Interrupts may fire on the rising or

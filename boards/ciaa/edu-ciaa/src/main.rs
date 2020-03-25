@@ -7,23 +7,27 @@
 
 extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(create_capability, debug, debug_gpio, static_init)]
+use kernel::{create_capability, debug, debug_gpio, static_init};
 extern crate kernel;
 extern crate cortexm4;
 extern crate lpc43xx;
 
 use kernel::capabilities;
 
+
 use capsules::alarm::AlarmDriver;
-use capsules::virtual_uart::{MuxUart, UartDevice};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 mod ciaa_components;
 use ciaa_components::button::ButtonComponent;
 use ciaa_components::gpio::GpioComponent;
 use ciaa_components::led::LedComponent;
+use components;
+use components::console::{ConsoleComponent, UartMuxComponent};
+use components::debug_writer::DebugWriterComponent;
+use components::process_console::ProcessConsoleComponent;
 use kernel::hil::Controller;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil;
 
 use components::alarm::AlarmDriverComponent;
 // how should the kernel respond when a process faults
@@ -47,6 +51,10 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
 
 /// Supported drivers by the platform
 pub struct EduCiaaNXP {
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        components::process_console::Capability,
+    >,
     console: &'static capsules::console::Console<'static>,
     button: &'static capsules::button::Button<'static>,
     gpio: &'static capsules::gpio::GPIO<'static>,
@@ -101,54 +109,25 @@ pub unsafe fn reset_handler() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
-    // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &lpc43xx::usart::USART2,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
-    uart_mux.initialize();
-    
-    hil::uart::Transmit::set_transmit_client(&lpc43xx::usart::USART2, uart_mux);
-    hil::uart::Receive::set_receive_client(&lpc43xx::usart::USART2, uart_mux);
-    
-    // Create a UartDevice for the kernel debugger.
-    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
-    debugger_uart.setup();
-    let debugger = static_init!(
-        kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(
-            debugger_uart,
-            &mut kernel::debug::OUTPUT_BUF,
-            &mut kernel::debug::INTERNAL_BUF,
-        )
-    );
-    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
-    let debug_wrapper = static_init!(
-        kernel::debug::DebugWriterWrapper,
-        kernel::debug::DebugWriterWrapper::new(debugger)
+
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
     );
-    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
     
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-    let console = static_init!(
-        capsules::console::Console<'static>,
-        capsules::console::Console::new(
-            console_uart,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    hil::uart::Transmit::set_transmit_client(console_uart, console);
-    hil::uart::Receive::set_receive_client(console_uart, console);
-    
+    // # CONSOLE
+    // Create a shared UART channel for the consoles and for kernel debug.
+    let uart_mux =
+        UartMuxComponent::new(&lpc43xx::usart::USART2, 115200, dynamic_deferred_caller).finalize(());
+
+    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    DebugWriterComponent::new(uart_mux).finalize(());
+
     // # TIMER
     let atimer = &lpc43xx::atimer::ATIMER;
     let mux_alarm = static_init!(
@@ -158,9 +137,10 @@ pub unsafe fn reset_handler() {
     atimer.configure(mux_alarm);
     let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(lpc43xx::atimer::AlarmTimer));
-
+    
     
     let platform = EduCiaaNXP {
+            pconsole: pconsole,
             console: console,
             button: button,
             gpio: gpio,
@@ -169,7 +149,10 @@ pub unsafe fn reset_handler() {
             alarm: alarm,
         };
     let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
-    //platform.console.initialize();
+    
+    platform.pconsole.start();
+    
+    debug!("Initialization complete. Entering main loop");
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

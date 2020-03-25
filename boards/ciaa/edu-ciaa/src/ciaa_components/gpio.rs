@@ -38,7 +38,7 @@ impl Component for GpioComponent {
     type StaticInput = ();
     type Output = &'static gpio::GPIO<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let gpio_pins = static_init!(

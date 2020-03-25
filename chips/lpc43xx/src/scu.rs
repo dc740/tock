@@ -30,7 +30,7 @@ pub pintsel: [ReadWrite<u32>; 2],
 }
 
 register_bitfields![u32,
-SFSP [
+pub SFSP [
     /// Select pin function.
     MODE OFFSET(0) NUMBITS(3) [
         /// Function 0 (default)

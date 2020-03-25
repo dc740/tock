@@ -37,45 +37,27 @@ impl Component for ButtonComponent {
     type StaticInput = ();
     type Output = &'static button::Button<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-        let button_pins = static_init!(
-            [(
-                &'static dyn kernel::hil::gpio::InterruptValuePin,
-                button::GpioMode
-            ); 4],
-            [(static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&lpc43xx::gpio::GPIO0[4])
-            )
-            .finalize(), button::GpioMode::LowWhenPressed),
-			(static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&lpc43xx::gpio::GPIO0[8])
-            )
-            .finalize(), button::GpioMode::LowWhenPressed),
-			(static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&lpc43xx::gpio::GPIO0[9])
-            )
-            .finalize(), button::GpioMode::LowWhenPressed),
-			(static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&lpc43xx::gpio::GPIO1[9])
-            )
-            .finalize(), button::GpioMode::LowWhenPressed)]
-        );
-
-
-            
-        let button = static_init!(
-            button::Button<'static>,
-            button::Button::new(button_pins, self.board_kernel.create_grant(&grant_cap))
-        );
-        for &(btn, _) in button_pins.iter() {
-            btn.set_client(button);
-        }
+        let button = components::button::ButtonComponent::new(self.board_kernel).finalize(
+        components::button_component_helper!((
+            &lpc43xx::gpio::GPIO0[4],
+            kernel::hil::gpio::ActivationMode::ActiveLow,
+            kernel::hil::gpio::FloatingState::PullNone
+        ),(
+            &lpc43xx::gpio::GPIO0[8],
+            kernel::hil::gpio::ActivationMode::ActiveLow,
+            kernel::hil::gpio::FloatingState::PullNone
+        ),(
+            &lpc43xx::gpio::GPIO0[9],
+            kernel::hil::gpio::ActivationMode::ActiveLow,
+            kernel::hil::gpio::FloatingState::PullNone
+        ),(
+            &lpc43xx::gpio::GPIO1[9],
+            kernel::hil::gpio::ActivationMode::ActiveLow,
+            kernel::hil::gpio::FloatingState::PullNone
+        )),
+    );
 
         button
     }

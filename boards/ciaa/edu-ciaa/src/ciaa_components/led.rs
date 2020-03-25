@@ -30,20 +30,15 @@ impl Component for LedComponent {
     type StaticInput = ();
     type Output = &'static led::LED<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
-        let led_pins = static_init!(
-            [(&'static dyn kernel::hil::gpio::Pin, led::ActivationMode); 6],
-            [(&lpc43xx::gpio::GPIO5[0],  led::ActivationMode::ActiveHigh),
-			 (&lpc43xx::gpio::GPIO5[1],  led::ActivationMode::ActiveHigh),
-			 (&lpc43xx::gpio::GPIO5[2],  led::ActivationMode::ActiveHigh),
-			 (&lpc43xx::gpio::GPIO0[14], led::ActivationMode::ActiveHigh),
-			 (&lpc43xx::gpio::GPIO1[11], led::ActivationMode::ActiveHigh),
-			 (&lpc43xx::gpio::GPIO1[12], led::ActivationMode::ActiveHigh)
-			]
-        );
-        let led = static_init!(
-            led::LED<'static>,
-            led::LED::new(&led_pins[..])
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+        let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+             (&lpc43xx::gpio::GPIO5[0],  kernel::hil::gpio::ActivationMode::ActiveHigh),
+			 (&lpc43xx::gpio::GPIO5[1],  kernel::hil::gpio::ActivationMode::ActiveHigh),
+			 (&lpc43xx::gpio::GPIO5[2],  kernel::hil::gpio::ActivationMode::ActiveHigh),
+			 (&lpc43xx::gpio::GPIO0[14], kernel::hil::gpio::ActivationMode::ActiveHigh),
+			 (&lpc43xx::gpio::GPIO1[11], kernel::hil::gpio::ActivationMode::ActiveHigh),
+			 (&lpc43xx::gpio::GPIO1[12], kernel::hil::gpio::ActivationMode::ActiveHigh)
+			)
         );
         led
     }

@@ -1,7 +1,7 @@
-use core::cmp;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::hil::uart;
 use kernel::ReturnCode;
 use crate::{ccu1, nvic, scu};
 
