@@ -1,5 +1,3 @@
-#![feature(panic_info_message)]
-
 use core::panic::PanicInfo;
 use core::fmt::Write;
 use core::str;
@@ -29,11 +27,10 @@ impl Write for Writer {
     }
 
 }
-#[no_mangle]
-#[inline(never)]
+
 fn flush(writer : &mut Writer)  {
     let message = match str::from_utf8(&writer.panic_buffer){
-           Err(e) => "Unable to read kernel panic dump",
+           Err(_e) => "Unable to read kernel panic dump",
            Ok(m) => m,
     };
     unsafe {

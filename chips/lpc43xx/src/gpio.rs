@@ -1,13 +1,11 @@
-
-use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::AtomicUsize;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadWrite, WriteOnly, FieldValue};
-use crate::scu::{SCU_BASE, SFSP, SCU_GPIOIntPinSel};
-use crate::gpio_pin_int::{ PININT_ClearIntStatus, PININT_SetPinModeEdge, PININT_EnableIntHigh, PININT_EnableIntLow};
+use crate::scu::{SCU_BASE, SFSP, gpio_int_pin_sel};
+use crate::gpio_pin_int::{ clear_int_status, set_pin_mode_edge, enable_int_high, enable_int_low};
 use crate::nvic::PIN_INT0;
 
 /// GPIO port register
@@ -384,7 +382,6 @@ pub struct GPIOPin {
 	gpio_port: u32,
 	gpio_pin: u32,
     assigned_interrupt: u8,
-    client_data: Cell<usize>,
     client: OptionalCell<&'static dyn hil::gpio::Client>,
     
 }
@@ -404,7 +401,6 @@ impl GPIOPin {
 			gpio_port,
 			gpio_pin,
             assigned_interrupt,
-            client_data: Cell::new(0),
             client: OptionalCell::empty(),
         }
     }
@@ -510,22 +506,22 @@ impl GPIOPin {
          * Select irq channel to handle a GPIO interrupt, using its port and pin to specify it
          * From EduCiaa pin out spec: GPIO1[9] -> port 1 and pin 9
          */
-        SCU_GPIOIntPinSel(self.assigned_interrupt , self.gpio_port as u8, self.gpio_pin as u8);
+        gpio_int_pin_sel(self.assigned_interrupt , self.gpio_port as u8, self.gpio_pin as u8);
         /* Clear actual configured interrupt status */
-        PININT_ClearIntStatus(self.assigned_interrupt);
+        clear_int_status(self.assigned_interrupt);
         /* Set edge interrupt mode */
-        PININT_SetPinModeEdge(self.assigned_interrupt);
+        set_pin_mode_edge(self.assigned_interrupt);
     
         if mode == 0b01 { //rising edge
           /* Enable high edge gpio interrupt */
-           PININT_EnableIntHigh(self.assigned_interrupt);
+           enable_int_high(self.assigned_interrupt);
         } else if mode == 0b10 { //falling edge
           /* Enable low edge gpio interrupt */
-           PININT_EnableIntLow(self.assigned_interrupt);
+           enable_int_low(self.assigned_interrupt);
         } else {
           /* Enable high and low edge */
-           PININT_EnableIntHigh(self.assigned_interrupt);
-           PININT_EnableIntLow(self.assigned_interrupt);
+           enable_int_high(self.assigned_interrupt);
+           enable_int_low(self.assigned_interrupt);
         }
     }
 
@@ -547,7 +543,7 @@ impl GPIOPin {
 
     pub fn handle_interrupt(&self) {
         // it's very important to clear the interrupt BEFORE running our code
-        PININT_ClearIntStatus(self.assigned_interrupt);
+        clear_int_status(self.assigned_interrupt);
         self.client.map(|client| {
             client.fired();
         });

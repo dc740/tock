@@ -1,7 +1,6 @@
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil::uart;
 use kernel::ReturnCode;
 use crate::{ccu1, nvic, scu};
 
@@ -510,13 +509,6 @@ impl<'a> Usart<'a> {
             );
 
     }
-    fn disable_rx_interrupts(&self) {
-        // disable interrupts
-        self.registers.ier.modify(
-            IER::RBRIE::DisableDisableTheRDAInterrupt
-            + IER::RXIE::DisableDisableTheRXLineStatusInterrupts
-            );
-    }
 
     fn enable_tx_interrupts(&self) {
         // set only interrupts used
@@ -825,7 +817,7 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
     /// Calling `transmit_word` while there is an outstanding
     /// `transmit_buffer` or `transmit_word` operation will return
     /// EBUSY.
-    fn transmit_word(&self, word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> ReturnCode {
         ReturnCode::FAIL
     }
 

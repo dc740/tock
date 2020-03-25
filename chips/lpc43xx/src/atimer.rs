@@ -86,12 +86,12 @@ impl AlarmTimer<'a> {
     }
 
     fn enable_alarm_irq(&self) {
-        let regs: &AtimerRegisters = &*self.registers;
+        //let regs: &AtimerRegisters = &*self.registers;
         // TODO: isn't it enabled when we call enable()?
     }
 
     fn disable_alarm_irq(&self) {
-        let regs: &AtimerRegisters = &*self.registers;
+        //let regs: &AtimerRegisters = &*self.registers;
         // TODO: same as above
     }
 
@@ -135,9 +135,8 @@ impl Alarm<'a> for AlarmTimer<'a> {
         self.callback.set(client);
     }
 
-    fn set_alarm(&self, mut tics: u32) {
+    fn set_alarm(&self, tics: u32) {
         let regs: &AtimerRegisters = &*self.registers;
-        let now = self.get_counter();
 
         // Clear any alarm event that may be pending before setting the new alarm.
         self.clear_alarm();

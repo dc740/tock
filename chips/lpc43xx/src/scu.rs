@@ -508,7 +508,7 @@ pub fn init_uart2_pinfunc() {
  * @param   pin_num  : GPIO pin number Interrupt , should be: 0 to 31
  * @return  Nothing
  */
-pub fn SCU_GPIOIntPinSel(port_sel: u8, port_num: u8, pin_num: u8)
+pub fn gpio_int_pin_sel(port_sel: u8, port_num: u8, pin_num: u8)
 {
     let of : i32 = ((port_sel & 3) << 3) as i32;
     let val : u32 = ((((port_num & 0x7) << 5) as u32 | (pin_num & 0x1F) as u32) << of) as u32;

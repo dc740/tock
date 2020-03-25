@@ -217,7 +217,7 @@ const GPIO_PIN_INT_BASE: StaticRef<Gpio_Pin_IntRegisters> =
  * @param   pins    : Pin interrupts to clear (ORed value of PININTCH*)
  * @return  Nothing
  */
-pub fn PININT_ClearIntStatus(pin : u8)
+pub fn clear_int_status(pin : u8)
 {
     let pin_edge_sensitive_clear = FieldValue::<u32, IST::Register>::new(0x1, pin as usize, 0x1);
     GPIO_PIN_INT_BASE.ist.modify(pin_edge_sensitive_clear);
@@ -228,7 +228,7 @@ pub fn PININT_ClearIntStatus(pin : u8)
  * @param   pin    : Pin to enable
  * @return  Nothing
  */
-pub fn PININT_EnableIntLow(pin : u8)
+pub fn enable_int_low(pin : u8)
 {
     GPIO_PIN_INT_BASE.sienf.set(1<<pin);
 }
@@ -238,7 +238,7 @@ pub fn PININT_EnableIntLow(pin : u8)
  * @param   pins    : Pin to enable
  * @return  Nothing
  */
-pub fn PININT_EnableIntHigh(pin : u8)
+pub fn enable_int_high(pin : u8)
 {
     GPIO_PIN_INT_BASE.sienr.set(1<<pin);
 }
@@ -248,7 +248,7 @@ pub fn PININT_EnableIntHigh(pin : u8)
  * @param   pin    : Pin to disable
  * @return  Nothing
  */
-pub fn PININT_DisableIntLow(pin : u8)
+pub fn disable_int_low(pin : u8)
 {
     GPIO_PIN_INT_BASE.cienf.set(1<<pin);
 }
@@ -258,7 +258,7 @@ pub fn PININT_DisableIntLow(pin : u8)
  * @param   pins    : Pin to disable
  * @return  Nothing
  */
-pub fn PININT_DisableIntHigh(pin : u8)
+pub fn disable_int_high(pin : u8)
 {
     GPIO_PIN_INT_BASE.cienr.set(1<<pin);
 }
@@ -268,7 +268,7 @@ pub fn PININT_DisableIntHigh(pin : u8)
  * @param   pins    : Pin
  * @return  Nothing
  */
-pub fn PININT_SetPinModeEdge(pin : u8)
+pub fn set_pin_mode_edge(pin : u8)
 {
     let pin_clear = FieldValue::<u32, ISEL::Register>::new(0x1, pin as usize, 0x0);
     GPIO_PIN_INT_BASE.isel.modify(pin_clear);
@@ -279,7 +279,7 @@ pub fn PININT_SetPinModeEdge(pin : u8)
  * @param   pins    : Pin
  * @return  Nothing
  */
-pub fn PININT_SetPinModeLevel(pin : u8)
+pub fn set_pin_mode_level(pin : u8)
 {
     let pin_enable = FieldValue::<u32, ISEL::Register>::new(0x1, pin as usize, 0x1);
     GPIO_PIN_INT_BASE.isel.modify(pin_enable);
@@ -290,7 +290,7 @@ pub fn PININT_SetPinModeLevel(pin : u8)
  * @param   pins    : Pin
  * @return  Nothing
  */
-pub fn PININT_EnableInterrupt(pin : u8)
+pub fn enable_interrupt(pin : u8)
 {
     let pin_enable = FieldValue::<u32, IENR::Register>::new(0x1, pin as usize, 0x1);
     GPIO_PIN_INT_BASE.ienr.modify(pin_enable);
@@ -301,7 +301,7 @@ pub fn PININT_EnableInterrupt(pin : u8)
  * @param   pins    : Pin
  * @return  Nothing
  */
-pub fn PININT_DisableInterrupt(pin : u8)
+pub fn disable_interrupt(pin : u8)
 {
     let pin_enable = FieldValue::<u32, IENR::Register>::new(0x1, pin as usize, 0x0);
     GPIO_PIN_INT_BASE.ienr.modify(pin_enable);

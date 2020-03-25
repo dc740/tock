@@ -42,8 +42,8 @@ pub mod nvic;
 /*pub mod mcpwm;
 pub mod pmc;
 pub mod qei;
-pub mod regfile;*/
-pub mod rgu;
+pub mod regfile;
+pub mod rgu;*/
 pub mod ritimer;
 /*pub mod rtc;
 pub mod sct;*/
