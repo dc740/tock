@@ -38,10 +38,10 @@ pub mod panic;
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 // Number of concurrent processes this platform supports. 4 for now. we can increase this later
-const NUM_PROCS: usize = 4;
+const NUM_PROCS: usize = 2;
 
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 8192] = [0; 8192];
+static mut APP_MEMORY: [u8; 16384] = [0; 16384];
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
 
