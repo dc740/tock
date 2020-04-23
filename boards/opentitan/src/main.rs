@@ -135,20 +135,16 @@ pub unsafe fn reset_handler() {
     // Start with half on and half off
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         (
-            &ibex::gpio::PORT[7],
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        ),
-        (
             &ibex::gpio::PORT[8],
-            kernel::hil::gpio::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[9],
-            kernel::hil::gpio::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[10],
-            kernel::hil::gpio::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[11],
@@ -164,6 +160,10 @@ pub unsafe fn reset_handler() {
         ),
         (
             &ibex::gpio::PORT[14],
+            kernel::hil::gpio::ActivationMode::ActiveHigh
+        ),
+        (
+            &ibex::gpio::PORT[15],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
     ));
@@ -220,6 +220,11 @@ pub unsafe fn reset_handler() {
         ///
         /// This symbol is defined in the linker script.
         static _sapps: u8;
+
+        /// End of the ROM region containing app images.
+        ///
+        /// This symbol is defined in the linker script.
+        static _eapps: u8;
     }
 
     let opentitan = OpenTitan {
@@ -233,12 +238,19 @@ pub unsafe fn reset_handler() {
     kernel::procs::load_processes(
         board_kernel,
         chip,
-        &_sapps as *const u8,
+        core::slice::from_raw_parts(
+            &_sapps as *const u8,
+            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        ),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_mgmt_cap,
-    );
+    )
+    .unwrap_or_else(|err| {
+        debug!("Error loading processes!");
+        debug!("{:?}", err);
+    });
 
     board_kernel.kernel_loop(&opentitan, chip, None, &main_loop_cap);
 }

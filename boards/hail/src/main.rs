@@ -14,6 +14,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::i2c::I2CMaster;
 use kernel::hil::Controller;
 use kernel::Platform;
 #[allow(unused_imports)]
@@ -353,10 +354,10 @@ pub unsafe fn reset_handler() {
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
         components::gpio_component_helper!(
-            &sam4l::gpio::PC[14], // DO
-            &sam4l::gpio::PC[15], // D1
-            &sam4l::gpio::PC[11], // D6
-            &sam4l::gpio::PC[12]  // D7
+            &sam4l::gpio::PB[14], // D0
+            &sam4l::gpio::PB[15], // D1
+            &sam4l::gpio::PB[11], // D6
+            &sam4l::gpio::PB[12]  // D7
         ),
     );
 
@@ -424,23 +425,36 @@ pub unsafe fn reset_handler() {
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
-    debug!("Initialization complete. Entering main loop");
+    debug!("Initialization complete. Entering main loop.");
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
         ///
         /// This symbol is defined in the linker script.
         static _sapps: u8;
+
+        /// End of the ROM region containing app images.
+        ///
+        /// This symbol is defined in the linker script.
+        static _eapps: u8;
     }
 
     kernel::procs::load_processes(
         board_kernel,
         chip,
-        &_sapps as *const u8,
+        core::slice::from_raw_parts(
+            &_sapps as *const u8,
+            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        ),
         &mut APP_MEMORY,
         &mut PROCESSES,
         fault_response,
         &process_management_capability,
-    );
+    )
+    .unwrap_or_else(|err| {
+        debug!("Error loading processes!");
+        debug!("{:?}", err);
+    });
+
     board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), &main_loop_capability);
 }
