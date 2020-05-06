@@ -528,7 +528,6 @@ impl<'a> Usart<'a> {
     pub fn handle_interrupt(&self) {
         // Hardware RX FIFO is not empty
         while self.is_rx_fifo_not_empty() {
-            debug!("rx fifo was not empty... I don't know why");
             // buffer read request was made
             if self.rx.is_some() {
                 self.rx.take().map(|mut rx| {

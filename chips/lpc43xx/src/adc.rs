@@ -12,21 +12,7 @@ _reserved0: [u8; 4],
 /// A/D Interrupt Enable Register. This register contains enable bits that allow the
 inten: ReadWrite<u32, INTEN::Register>,
 /// A/D Channel Data Register. This register contains the result of the most recent
-dr_0: ReadOnly<u32, DR[0]::Register>,
-/// A/D Channel Data Register. This register contains the result of the most recent
-dr_1: ReadOnly<u32, DR[1]::Register>,
-/// A/D Channel Data Register. This register contains the result of the most recent
-dr_2: ReadOnly<u32, DR[2]::Register>,
-/// A/D Channel Data Register. This register contains the result of the most recent
-dr_3: ReadOnly<u32, DR[3]::Register>,
-/// A/D Channel Data Register. This register contains the result of the most recent
-dr_4: ReadOnly<u32, DR[4]::Register>,
-/// A/D Channel Data Register. This register contains the result of the most recent
-dr_5: ReadOnly<u32, DR[5]::Register>,
-/// A/D Channel Data Register. This register contains the result of the most recent
-dr_6: ReadOnly<u32, DR[6]::Register>,
-/// A/D Channel Data Register. This register contains the result of the most recent
-dr_7: ReadOnly<u32, DR[7]::Register>,
+dr: [ReadOnly<u32, DR::Register>; 8],
 /// A/D Status Register. This register contains DONE and OVERRUN flags for all of th
 stat: ReadOnly<u32, STAT::Register>,
 }
@@ -120,63 +106,7 @@ STAT [
     /// This bit is the A/D interrupt flag. It is one when any of the individual A/D cha
     ADINT OFFSET(16) NUMBITS(1) []
 ],
-DR[0] [
-    /// When DONE is 1, this field contains a binary fraction representing the voltage o
-    V_VREF OFFSET(6) NUMBITS(10) [],
-    /// This bit is 1 in burst mode if the results of one or more conversions was (were)
-    OVERRUN OFFSET(30) NUMBITS(1) [],
-    /// This bit is set to 1 when an A/D conversion completes. It is cleared when this r
-    DONE OFFSET(31) NUMBITS(1) []
-],
-DR[1] [
-    /// When DONE is 1, this field contains a binary fraction representing the voltage o
-    V_VREF OFFSET(6) NUMBITS(10) [],
-    /// This bit is 1 in burst mode if the results of one or more conversions was (were)
-    OVERRUN OFFSET(30) NUMBITS(1) [],
-    /// This bit is set to 1 when an A/D conversion completes. It is cleared when this r
-    DONE OFFSET(31) NUMBITS(1) []
-],
-DR[2] [
-    /// When DONE is 1, this field contains a binary fraction representing the voltage o
-    V_VREF OFFSET(6) NUMBITS(10) [],
-    /// This bit is 1 in burst mode if the results of one or more conversions was (were)
-    OVERRUN OFFSET(30) NUMBITS(1) [],
-    /// This bit is set to 1 when an A/D conversion completes. It is cleared when this r
-    DONE OFFSET(31) NUMBITS(1) []
-],
-DR[3] [
-    /// When DONE is 1, this field contains a binary fraction representing the voltage o
-    V_VREF OFFSET(6) NUMBITS(10) [],
-    /// This bit is 1 in burst mode if the results of one or more conversions was (were)
-    OVERRUN OFFSET(30) NUMBITS(1) [],
-    /// This bit is set to 1 when an A/D conversion completes. It is cleared when this r
-    DONE OFFSET(31) NUMBITS(1) []
-],
-DR[4] [
-    /// When DONE is 1, this field contains a binary fraction representing the voltage o
-    V_VREF OFFSET(6) NUMBITS(10) [],
-    /// This bit is 1 in burst mode if the results of one or more conversions was (were)
-    OVERRUN OFFSET(30) NUMBITS(1) [],
-    /// This bit is set to 1 when an A/D conversion completes. It is cleared when this r
-    DONE OFFSET(31) NUMBITS(1) []
-],
-DR[5] [
-    /// When DONE is 1, this field contains a binary fraction representing the voltage o
-    V_VREF OFFSET(6) NUMBITS(10) [],
-    /// This bit is 1 in burst mode if the results of one or more conversions was (were)
-    OVERRUN OFFSET(30) NUMBITS(1) [],
-    /// This bit is set to 1 when an A/D conversion completes. It is cleared when this r
-    DONE OFFSET(31) NUMBITS(1) []
-],
-DR[6] [
-    /// When DONE is 1, this field contains a binary fraction representing the voltage o
-    V_VREF OFFSET(6) NUMBITS(10) [],
-    /// This bit is 1 in burst mode if the results of one or more conversions was (were)
-    OVERRUN OFFSET(30) NUMBITS(1) [],
-    /// This bit is set to 1 when an A/D conversion completes. It is cleared when this r
-    DONE OFFSET(31) NUMBITS(1) []
-],
-DR[7] [
+DR [
     /// When DONE is 1, this field contains a binary fraction representing the voltage o
     V_VREF OFFSET(6) NUMBITS(10) [],
     /// This bit is 1 in burst mode if the results of one or more conversions was (were)
@@ -191,3 +121,98 @@ const ADC0_BASE: StaticRef<AdcRegisters> =
 
 const ADC1_BASE: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x400E4000 as *const AdcRegisters) };
+
+
+pub static mut ADC0: Adc = Adc::new(ADC0_BASE, 0);
+pub static mut ADC1: Adc = Adc::new(ADC1_BASE, 1);
+
+pub struct Adc {
+    registers: StaticRef<AdcRegisters>,
+    client: OptionalCell<&'static dyn hil::adc::Client>,
+    buffer_idx:usize,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum AdcChannel {
+    AnalogInput0 = 1,
+    AnalogInput1 = 2,
+    AnalogInput2 = 3,
+    AnalogInput3 = 4,
+    AnalogInput4 = 5,
+    AnalogInput5 = 6,
+    AnalogInput6 = 7,
+    AnalogInput7 = 8,
+    VDD = 9,
+    VDDHDIV5 = 0xD,
+}
+
+impl Adc {
+    const fn new(registers: StaticRef<AdcRegisters>, buffer_idx:usize) -> Adc {
+        Adc {
+            registers,
+            // state: Cell::new(State::Idle),
+            client: OptionalCell::empty(),
+            buffer_idx,
+        }
+    }
+    pub fn disable_interrupt(&self) {
+        let regs = &*self.registers;
+        //disable  IRQ
+        unsafe {
+            let n;
+            if self.buffer_idx == 0{
+                n = cortexm4::nvic::Nvic::new(nvic::ADC0);
+            } else {
+                n = cortexm4::nvic::Nvic::new(nvic::ADC1);
+            }
+            n.clear_pending();
+            n.disable();
+        }
+        let channel_disable = FieldValue::<u32, ()>::new(0x1, self.channel as usize, 0x0)
+        regs.inten.modify(channel_disable);
+    }
+    pub fn set_client(&self, client: &'static dyn hil::adc::Client) {
+        self.client.set(client);
+    }
+
+    pub fn handle_interrupt(&self) {
+        let regs = &*self.registers;
+        self.disable_interrupt();
+        //we can internally store a channel, or check the register
+        //to see which channel sent the interrupt. So lets do that.
+        let channel = regs.gdr.read(GDR::CHN);
+        let val = regs.dr[channel as usize].read(DR::V_VREF) as u16;
+        self.client.map(|client| {
+            client.sample_ready(val);
+        });
+    }
+}
+
+/// Implements an ADC capable reading ADC samples on any channel.
+impl hil::adc::Adc for Adc {
+    type Channel = AdcChannel;
+
+    fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+        let regs = &*self.registers;
+        self.enable_interrupt();
+        
+        ReturnCode::SUCCESS
+    }
+
+    fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn stop_sampling(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn get_resolution_bits(&self) -> usize {
+        10
+    }
+
+    fn get_voltage_reference_mv(&self) -> Option<usize> {
+        Some(3300)
+    }
+}
+
