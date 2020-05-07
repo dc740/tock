@@ -131,7 +131,11 @@ pub struct Adc {
     client: OptionalCell<&'static dyn hil::adc::Client>,
     buffer_idx:usize,
 }
-
+#[derive(Copy, Clone, Debug)]
+pub enum ChannelSetting {
+    Disable = 0,
+    Enable = 1,
+}
 #[derive(Copy, Clone, Debug)]
 pub enum AdcChannel {
     AnalogInput0 = 1,
@@ -155,6 +159,21 @@ impl Adc {
             buffer_idx,
         }
     }
+    pub fn enable_interrupt(&self) {
+        let regs = &*self.registers;
+        //enable  IRQ
+        unsafe {
+            let n;
+            if self.buffer_idx == 0{
+                n = cortexm4::nvic::Nvic::new(nvic::ADC0);
+            } else {
+                n = cortexm4::nvic::Nvic::new(nvic::ADC1);
+            }
+            n.clear_pending();
+            n.enable();
+        }
+    }
+    
     pub fn disable_interrupt(&self) {
         let regs = &*self.registers;
         //disable  IRQ
@@ -168,23 +187,36 @@ impl Adc {
             n.clear_pending();
             n.disable();
         }
-        let channel_disable = FieldValue::<u32, ()>::new(0x1, self.channel as usize, 0x0)
-        regs.inten.modify(channel_disable);
     }
+    
+    /**
+     * Enables or disables a channel interrupt for the current ADC.
+     */
+    pub fn channel_set(&self, channel : u32,  setting : ChannelSetting) {
+        let regs = &*self.registers;
+        let register_setting = FieldValue::<u32, ()>::new(0x1, channel as usize, setting as u32)
+        regs.inten.modify(register_setting);
+    }
+    
     pub fn set_client(&self, client: &'static dyn hil::adc::Client) {
         self.client.set(client);
     }
 
     pub fn handle_interrupt(&self) {
         let regs = &*self.registers;
-        self.disable_interrupt();
         //we can internally store a channel, or check the register
         //to see which channel sent the interrupt. So lets do that.
+        self.disable_interrupt();
         let channel = regs.gdr.read(GDR::CHN);
+        self.channel_set(channel, ChannelSetting::Disable)
+        
         let val = regs.dr[channel as usize].read(DR::V_VREF) as u16;
         self.client.map(|client| {
             client.sample_ready(val);
         });
+    }
+    
+    pub fn init_adc(&self) {
     }
 }
 
@@ -194,6 +226,10 @@ impl hil::adc::Adc for Adc {
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
         let regs = &*self.registers;
+        //disable ALL channels first
+        regs.inten.set(0);
+        
+        
         self.enable_interrupt();
         
         ReturnCode::SUCCESS
