@@ -274,6 +274,16 @@ CLK_CFG [
 const CCU1_BASE: StaticRef<Ccu1Registers> =
     unsafe { StaticRef::new(0x40051000 as *const Ccu1Registers) };
 
+
+pub fn adc_clock_init(adc : u8) {
+    if adc == 0 {
+        CCU1_BASE.clk_apb3_adc0_cfg.write(CLK_CFG::AUTO::AutoIsEnabled + CLK_CFG::WAKEUP::WakeUpIsEnabled + CLK_CFG::RUN::ClockIsEnabled)
+    } else {
+        CCU1_BASE.clk_apb3_adc1_cfg.write(CLK_CFG::AUTO::AutoIsEnabled + CLK_CFG::WAKEUP::WakeUpIsEnabled + CLK_CFG::RUN::ClockIsEnabled)
+    }
+    
+}
+
 /* UART 2 init */
 pub fn uart2_init() {
     CCU1_BASE.clk_m4_usart2_cfg.write(CLK_CFG::AUTO::AutoIsEnabled + CLK_CFG::WAKEUP::WakeUpIsEnabled + CLK_CFG::RUN::ClockIsEnabled)

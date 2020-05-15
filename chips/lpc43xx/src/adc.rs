@@ -217,6 +217,10 @@ impl Adc {
     }
     
     pub fn init_adc(&self) {
+        ccu1::adc_clock_init(buffer_idx as u8);
+        //disable ALL channels first
+        regs.inten.set(0);
+        
     }
 }
 
@@ -226,9 +230,8 @@ impl hil::adc::Adc for Adc {
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
         let regs = &*self.registers;
-        //disable ALL channels first
-        regs.inten.set(0);
         
+        self.init_adc();
         
         self.enable_interrupt();
         
