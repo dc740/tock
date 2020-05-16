@@ -122,7 +122,7 @@ const ADC0_BASE: StaticRef<AdcRegisters> =
 const ADC1_BASE: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x400E4000 as *const AdcRegisters) };
 
-
+const ADC_MAX_SAMPLE_RATE : u32 = 400000;
 pub static mut ADC0: Adc = Adc::new(ADC0_BASE, 0);
 pub static mut ADC1: Adc = Adc::new(ADC1_BASE, 1);
 
@@ -217,10 +217,33 @@ impl Adc {
     }
     
     pub fn init_adc(&self) {
-        ccu1::adc_clock_init(buffer_idx as u8);
+        ccu1::adc_clock_init(channel as u8);
         //disable ALL channels first
         regs.inten.set(0);
-        
+        let currently_enabled = regs.cr.read(CR::SEL);
+        let mut clk_val;
+        if currently_enabled {
+            clk_val = regs.cr.read(CR::CLKDIV);
+        } else {
+            clk_val = self.get_adc_clk_div(buffer_idx, ADC_MAX_SAMPLE_RATE);
+        }
+        regs.cr.write(CR::PDN::TheADConverterIsOperational
+                      + CR::CLKS::_11Clocks10Bits
+                      + CR::SEL.val(currently_enabled | (1 << channel))
+                      + CR::CLKDIV.val(clk_val)
+                      + CR::BURST::ConversionsAreSoftwareControlledAndRequire11Clocks);
+    }
+    
+    pub fn get_adc_clk_div(&self, idx : u8, rate : u32) {
+        /* The APB clock (PCLK_ADC0) is divided by (CLKDIV+1) to produce the clock for
+           A/D converter, which should be less than or equal to 4.5MHz.
+           A fully conversion requires (bits_accuracy+1) of these clocks.
+           ADC Clock = PCLK_ADC0 / (CLKDIV + 1);
+           ADC rate = ADC clock / (the number of clocks required for each conversion);
+         */
+        let adc_block_freq = ccu1::get_adc_rate();
+        let full_rate = rate * (self.get_resolution_bits() + 1);
+        ((adc_block_freq * 2 + full_rate) / (full_rate * 2)) - 1
     }
 }
 
@@ -231,7 +254,7 @@ impl hil::adc::Adc for Adc {
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
         let regs = &*self.registers;
         
-        self.init_adc();
+        self.init_adc(channel);
         
         self.enable_interrupt();
         

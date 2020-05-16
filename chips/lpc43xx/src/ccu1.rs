@@ -310,3 +310,32 @@ pub fn get_uart2_rate() -> u32 {
 
     return rate;
 }
+
+pub fn get_adc_rate(adc_index : u8) -> u32 {
+    let mut adc_cfg_reg;
+    let mut rate : u32;
+    let div : u32;
+    if adc_index == 0 {
+        adc_cfg_reg = clk_apb3_adc0_cfg;
+    } else {
+        adc_cfg_reg = clk_apb3_adc1_cfg;
+    }
+    
+    if adc_cfg_reg.matches_all(CLK_CFG::RUN::ClockIsEnabled) {
+        //base clock is CLK_BASE_UART2: CGU_BASE.base_uart2_clk
+        rate = cgu::get_clock_input_hz(cgu::get_adc_base_clk());
+        /* Get divider for this clock */
+        if ((adc_cfg_reg.get() >> 5) & 0x7) == 0 {
+            div = 1;
+        }
+        else {
+            div = 2;/* No other dividers supported */
+        }
+        rate = rate / div;
+    }
+    else {
+        rate = 0;
+    }
+
+    return rate;
+}

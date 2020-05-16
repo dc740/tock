@@ -649,8 +649,6 @@ const CGU_BASE: StaticRef<CguRegisters> =
     unsafe { StaticRef::new(0x40050000 as *const CguRegisters) };
 
 /// Helper function to initialize all system clocks to a safe value
-#[no_mangle]
-#[inline(never)]
 pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_freq: u32, set_initial_clocks: bool){
     let mut delay : u32 = 5500;
     let mut direct : bool = false;
@@ -731,22 +729,16 @@ pub fn board_setup_clocking(clkin: FieldValue<u32, BASE_CLK::Register>, core_fre
     }
 }
 
-#[no_mangle]
-#[inline(never)]
 fn setup_main_pll(config: FieldValue<u32, PLL1_CTRL::Register>){
    /* power up main PLL */
    //CGU_BASE.pll1_ctrl.modify(config)
    CGU_BASE.pll1_ctrl.set(u32::from(config)) //overwrite the entire register. Don't modify it
 }
 
-#[no_mangle]
-#[inline(never)]
 fn is_main_pll_locked() -> bool {
    CGU_BASE.pll1_stat.is_set(PLL1_STAT::LOCK)
 }
 
-#[no_mangle]
-#[inline(never)]
 fn enable_crystal() {
     let xtal_local_cpy = CGU_BASE.xtal_osc_ctrl.extract();
     let mut xtal_fields = XTAL_OSC_CTRL::ENABLE::Enable + XTAL_OSC_CTRL::BYPASS::CrystalOperationWithCrystalConnectedDefault;
@@ -769,8 +761,6 @@ fn enable_crystal() {
      }
 }
 
-#[no_mangle]
-#[inline(never)]
 fn calculate_main_pll_value(srcin: FieldValue<u32, BASE_CLK::Register>, freq: u32) -> FieldValue<u32, PLL1_CTRL::Register>{
     let input_freq = get_clock_input_hz(srcin);
     if input_freq > MAX_CLOCK_FREQ || input_freq < (PLL_MIN_CCO_FREQ / 16) || input_freq == 0 {
@@ -806,8 +796,6 @@ fn calculate_main_pll_value(srcin: FieldValue<u32, BASE_CLK::Register>, freq: u3
     config
 }
 
-#[no_mangle]
-#[inline(never)]
 pub fn get_clock_input_hz(clkin: FieldValue<u32, BASE_CLK::Register>) -> u32 {
     let mut ret_val: u32 = 0;
     // We can't use match here because the registers don't have Eq and PartialEq implemented
@@ -853,8 +841,6 @@ pub fn get_clock_input_hz(clkin: FieldValue<u32, BASE_CLK::Register>) -> u32 {
     ret_val
 }
 
-#[no_mangle]
-#[inline(never)]
 fn get_main_pll_hz() -> u32 {
     let freq : u32 = get_clock_input_hz(BASE_CLK::CLK_SEL.val(CGU_BASE.pll1_ctrl.read(PLL1_CTRL::CLK_SEL)));
     let msel : u32;
@@ -884,8 +870,6 @@ fn get_main_pll_hz() -> u32 {
     ret_val
 }
 
-#[no_mangle]
-#[inline(never)]
 fn get_div_rate(divider: CHIP_CGU_IDIV) -> u32 {
     match divider {
             CHIP_CGU_IDIV::ClkIdivA => {
@@ -922,8 +906,6 @@ fn get_div_rate(divider: CHIP_CGU_IDIV) -> u32 {
 
 }
 
-#[no_mangle]
-#[inline(never)]
 fn pll_get_frac(freq: u32, current_input_freq : u32) -> FieldValue<u32, PLL1_CTRL::Register> {
     let diff_0 : u32;
     let diff_1 : u32;
@@ -970,8 +952,6 @@ fn pll_get_frac(freq: u32, current_input_freq : u32) -> FieldValue<u32, PLL1_CTR
    }
 }
 
-#[no_mangle]
-#[inline(never)]
 fn pll_calc_divs(freq: u32, config: FieldValue<u32, PLL1_CTRL::Register>, current_input_freq : u32) -> (u32, FieldValue<u32, PLL1_CTRL::Register>)
 {
 
@@ -1017,15 +997,11 @@ fn pll_calc_divs(freq: u32, config: FieldValue<u32, PLL1_CTRL::Register>, curren
 }
 
 
-#[no_mangle]
-#[inline(never)]
 pub fn get_uart2_base_clk() -> FieldValue<u32,BASE_CLK::Register> {
     BASE_CLK::CLK_SEL.val(CGU_BASE.base_uart2_clk.read(BASE_CLK::CLK_SEL))
 }
 
 /// We don't have std::num::abs so we implement this substraction manually
-#[no_mangle]
-#[inline(never)]
 fn abs_sub (a : u32, b : u32) -> u32 {
     if a > b {
         return a - b;
@@ -1059,4 +1035,9 @@ fn is_field_value_set<R>(current_field_value: FieldValue<u32, R>, expected_bits 
 fn get_raw_value_from_field_value<R>(field: Field<u32, R>, composed_value : FieldValue<u32, R>) -> u32 where R: RegisterLongName {
     // For the Field, the mask is unshifted, so...
     (composed_value.value >> field.shift) & field.mask
+}
+
+// ADC functions
+pub fn get_adc_base_clk(adc_index : u8) -> FieldValue<u32,BASE_CLK::Register> {
+    BASE_CLK::CLK_SEL.val(CGU_BASE.base_apb3_clk.read(BASE_CLK::CLK_SEL))
 }
