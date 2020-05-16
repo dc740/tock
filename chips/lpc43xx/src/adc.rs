@@ -233,6 +233,7 @@ impl Adc {
                       + CR::SEL.val(currently_enabled | (1 << channel))
                       + CR::CLKDIV.val(clk_val)
                       + CR::BURST::ConversionsAreSoftwareControlledAndRequire11Clocks);
+        self.channel_set(channel, ChannelSetting::Enable);
     }
     
     pub fn get_adc_clk_div(&self, rate : u32, clocks : u32) -> u32 {
