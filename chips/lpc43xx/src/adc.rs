@@ -1,6 +1,12 @@
 
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ ReadOnly, ReadWrite, register_bitfields, FieldValue};
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::hil;
+use kernel::ReturnCode;
+
+use crate::{ccu1,nvic};
+
     /// 10-bit Analog-to-Digital Converter (ADC)
 #[repr(C)]
 struct AdcRegisters {
@@ -129,7 +135,7 @@ pub static mut ADC1: Adc = Adc::new(ADC1_BASE, 1);
 pub struct Adc {
     registers: StaticRef<AdcRegisters>,
     client: OptionalCell<&'static dyn hil::adc::Client>,
-    buffer_idx:usize,
+    adc_idx:u8,
 }
 #[derive(Copy, Clone, Debug)]
 pub enum ChannelSetting {
@@ -151,20 +157,19 @@ pub enum AdcChannel {
 }
 
 impl Adc {
-    const fn new(registers: StaticRef<AdcRegisters>, buffer_idx:usize) -> Adc {
+    const fn new(registers: StaticRef<AdcRegisters>, adc_idx:u8) -> Adc {
         Adc {
             registers,
             // state: Cell::new(State::Idle),
             client: OptionalCell::empty(),
-            buffer_idx,
+            adc_idx,
         }
     }
     pub fn enable_interrupt(&self) {
-        let regs = &*self.registers;
         //enable  IRQ
         unsafe {
             let n;
-            if self.buffer_idx == 0{
+            if self.adc_idx == 0{
                 n = cortexm4::nvic::Nvic::new(nvic::ADC0);
             } else {
                 n = cortexm4::nvic::Nvic::new(nvic::ADC1);
@@ -175,11 +180,10 @@ impl Adc {
     }
     
     pub fn disable_interrupt(&self) {
-        let regs = &*self.registers;
         //disable  IRQ
         unsafe {
             let n;
-            if self.buffer_idx == 0{
+            if self.adc_idx == 0{
                 n = cortexm4::nvic::Nvic::new(nvic::ADC0);
             } else {
                 n = cortexm4::nvic::Nvic::new(nvic::ADC1);
@@ -194,7 +198,7 @@ impl Adc {
      */
     pub fn channel_set(&self, channel : u32,  setting : ChannelSetting) {
         let regs = &*self.registers;
-        let register_setting = FieldValue::<u32, ()>::new(0x1, channel as usize, setting as u32)
+        let register_setting = FieldValue::<u32, INTEN::Register>::new(0x1, channel as usize, setting as u32);
         regs.inten.modify(register_setting);
     }
     
@@ -208,7 +212,7 @@ impl Adc {
         //to see which channel sent the interrupt. So lets do that.
         self.disable_interrupt();
         let channel = regs.gdr.read(GDR::CHN);
-        self.channel_set(channel, ChannelSetting::Disable)
+        self.channel_set(channel, ChannelSetting::Disable);
         
         let val = regs.dr[channel as usize].read(DR::V_VREF) as u16;
         self.client.map(|client| {
@@ -216,16 +220,17 @@ impl Adc {
         });
     }
     
-    pub fn init_adc(&self) {
+    pub fn init_adc(&self, channel : u8) {
+        let regs = &*self.registers;
         ccu1::adc_clock_init(channel as u8);
         //disable ALL channels first
         regs.inten.set(0);
         let currently_enabled = regs.cr.read(CR::SEL);
-        let mut clk_val;
-        if currently_enabled {
+        let clk_val;
+        if currently_enabled != 0 {
             clk_val = regs.cr.read(CR::CLKDIV);
         } else {
-            clk_val = self.get_adc_clk_div(buffer_idx, ADC_MAX_SAMPLE_RATE);
+            clk_val = self.get_adc_clk_div(ADC_MAX_SAMPLE_RATE, 11);
         }
         regs.cr.write(CR::PDN::TheADConverterIsOperational
                       + CR::CLKS::_11Clocks10Bits
@@ -234,15 +239,15 @@ impl Adc {
                       + CR::BURST::ConversionsAreSoftwareControlledAndRequire11Clocks);
     }
     
-    pub fn get_adc_clk_div(&self, idx : u8, rate : u32) {
+    pub fn get_adc_clk_div(&self, rate : u32, clocks : u32) -> u32 {
         /* The APB clock (PCLK_ADC0) is divided by (CLKDIV+1) to produce the clock for
            A/D converter, which should be less than or equal to 4.5MHz.
            A fully conversion requires (bits_accuracy+1) of these clocks.
            ADC Clock = PCLK_ADC0 / (CLKDIV + 1);
            ADC rate = ADC clock / (the number of clocks required for each conversion);
          */
-        let adc_block_freq = ccu1::get_adc_rate();
-        let full_rate = rate * (self.get_resolution_bits() + 1);
+        let adc_block_freq = ccu1::get_adc_rate(self.adc_idx);
+        let full_rate = rate * clocks;
         ((adc_block_freq * 2 + full_rate) / (full_rate * 2)) - 1
     }
 }
@@ -252,9 +257,7 @@ impl hil::adc::Adc for Adc {
     type Channel = AdcChannel;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
-        let regs = &*self.registers;
-        
-        self.init_adc(channel);
+        self.init_adc(*channel as u8);
         
         self.enable_interrupt();
         

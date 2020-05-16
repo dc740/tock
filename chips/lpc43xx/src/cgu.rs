@@ -1038,6 +1038,6 @@ fn get_raw_value_from_field_value<R>(field: Field<u32, R>, composed_value : Fiel
 }
 
 // ADC functions
-pub fn get_adc_base_clk(adc_index : u8) -> FieldValue<u32,BASE_CLK::Register> {
+pub fn get_adc_base_clk() -> FieldValue<u32,BASE_CLK::Register> {
     BASE_CLK::CLK_SEL.val(CGU_BASE.base_apb3_clk.read(BASE_CLK::CLK_SEL))
 }
