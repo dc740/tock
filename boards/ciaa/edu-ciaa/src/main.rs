@@ -47,16 +47,17 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
 
 /// Supported drivers by the platform
 pub struct EduCiaaNXP {
+    adc: &'static capsules::adc::Adc<'static, lpc43xx::adc::Adc>,
+    alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, lpc43xx::atimer::AlarmTimer<'static>>>,
+    button: &'static capsules::button::Button<'static>,
+    console: &'static capsules::console::Console<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static>,
+    ipc: kernel::ipc::IPC,
+    led: &'static capsules::led::LED<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
         components::process_console::Capability,
     >,
-    console: &'static capsules::console::Console<'static>,
-    button: &'static capsules::button::Button<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
-    led: &'static capsules::led::LED<'static>,
-    ipc: kernel::ipc::IPC,
-    alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, lpc43xx::atimer::AlarmTimer<'static>>>,
 }
 
 impl kernel::Platform for EduCiaaNXP {
@@ -65,12 +66,13 @@ impl kernel::Platform for EduCiaaNXP {
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             _ => f(None),
         }
     }
@@ -149,6 +151,7 @@ pub unsafe fn reset_handler() {
             (&lpc43xx::gpio::GPIO1[9],kernel::hil::gpio::ActivationMode::ActiveLow,kernel::hil::gpio::FloatingState::PullNone)
             ),
     );
+    
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let process_management_capability =
@@ -156,7 +159,28 @@ pub unsafe fn reset_handler() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
-
+    // ADC component. This is not multiplexed and there are no helper methods
+    // Setup ADC
+    let adc_channels = static_init!(
+        [&'static lpc43xx::adc::AdcChannel; 3],
+        [
+            &lpc43xx::adc::AdcChannel::AnalogInput1, // Channel 1
+            &lpc43xx::adc::AdcChannel::AnalogInput2, // Channel 2
+            &lpc43xx::adc::AdcChannel::AnalogInput3, // Channel 3
+        ]
+    );
+    let adc = static_init!(
+        capsules::adc::Adc<'static, lpc43xx::adc::Adc>,
+        capsules::adc::Adc::new(
+            &lpc43xx::adc::ADC0,
+            board_kernel.create_grant(&memory_allocation_capability),
+            adc_channels,
+            &mut capsules::adc::ADC_BUFFER1,
+            &mut capsules::adc::ADC_BUFFER2,
+            &mut capsules::adc::ADC_BUFFER3
+        )
+    );
+    lpc43xx::adc::ADC0.set_client(adc);
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());
@@ -187,13 +211,14 @@ pub unsafe fn reset_handler() {
     
     
     let platform = EduCiaaNXP {
-            pconsole: pconsole,
-            console: console,
-            button: button,
-            gpio: gpio,
-            led: led,
+            adc,
+            alarm,
+            button,
+            console,
+            gpio,
             ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
-            alarm: alarm,
+            led,
+            pconsole,
         };
     let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
     

@@ -144,16 +144,14 @@ pub enum ChannelSetting {
 }
 #[derive(Copy, Clone, Debug)]
 pub enum AdcChannel {
-    AnalogInput0 = 1,
-    AnalogInput1 = 2,
-    AnalogInput2 = 3,
-    AnalogInput3 = 4,
-    AnalogInput4 = 5,
-    AnalogInput5 = 6,
-    AnalogInput6 = 7,
-    AnalogInput7 = 8,
-    VDD = 9,
-    VDDHDIV5 = 0xD,
+    AnalogInput0 = 0,
+    AnalogInput1 = 1,
+    AnalogInput2 = 2,
+    AnalogInput3 = 3,
+    AnalogInput4 = 4,
+    AnalogInput5 = 5,
+    AnalogInput6 = 6,
+    AnalogInput7 = 7
 }
 
 impl Adc {
@@ -208,8 +206,6 @@ impl Adc {
 
     pub fn handle_interrupt(&self) {
         let regs = &*self.registers;
-        //we can internally store a channel, or check the register
-        //to see which channel sent the interrupt. So lets do that.
         self.disable_interrupt();
         let channel = regs.gdr.read(GDR::CHN);
         self.channel_set(channel, ChannelSetting::Disable);
@@ -281,3 +277,61 @@ impl hil::adc::Adc for Adc {
     }
 }
 
+
+//NOT IMPLEMENTED. I just needed the interface
+/// Implements an ADC capable of continuous sampling
+impl hil::adc::AdcHighSpeed for Adc {
+    /// Capture buffered samples from the ADC continuously at a given
+    /// frequency, calling the client whenever a buffer fills up. The client is
+    /// then expected to either stop sampling or provide an additional buffer
+    /// to sample into. Note that due to hardware constraints the maximum
+    /// frequency range of the ADC is from 187 kHz to 23 Hz (although its
+    /// precision is limited at higher frequencies due to aliasing).
+    ///
+    /// - `channel`: the ADC channel to sample
+    /// - `frequency`: frequency to sample at
+    /// - `buffer1`: first buffer to fill with samples
+    /// - `length1`: number of samples to collect (up to buffer length)
+    /// - `buffer2`: second buffer to fill once the first is full
+    /// - `length2`: number of samples to collect (up to buffer length)
+    fn sample_highspeed(
+        &self,
+        _channel: &Self::Channel,
+        _frequency: u32,
+        buffer1: &'static mut [u16],
+        _length1: usize,
+        buffer2: &'static mut [u16],
+        _length2: usize,
+    ) -> (
+        ReturnCode,
+        Option<&'static mut [u16]>,
+        Option<&'static mut [u16]>,
+    ) {
+        (ReturnCode::EINVAL, Some(buffer1), Some(buffer2))
+    }
+
+    /// Provide a new buffer to send on-going buffered continuous samples to.
+    /// This is expected to be called after the `samples_ready` callback.
+    ///
+    /// - `buf`: buffer to fill with samples
+    /// - `length`: number of samples to collect (up to buffer length)
+    fn provide_buffer(
+        &self,
+        buf: &'static mut [u16],
+        _length: usize,
+    ) -> (ReturnCode, Option<&'static mut [u16]>) {
+            (ReturnCode::EINVAL, Some(buf))
+    }
+
+    /// Reclaim buffers after the ADC is stopped.
+    /// This is expected to be called after `stop_sampling`.
+    fn retrieve_buffers(
+        &self,
+    ) -> (
+        ReturnCode,
+        Option<&'static mut [u16]>,
+        Option<&'static mut [u16]>,
+    ) {
+            (ReturnCode::EINVAL, None, None)
+    }
+}
