@@ -49,11 +49,11 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
 pub struct EduCiaaNXP {
     adc: &'static capsules::adc::Adc<'static, lpc43xx::adc::Adc>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, lpc43xx::atimer::AlarmTimer<'static>>>,
-    button: &'static capsules::button::Button<'static>,
+    button: &'static capsules::button::Button<'static, lpc43xx::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, lpc43xx::gpio::GPIOPin>,
     ipc: kernel::ipc::IPC,
-    led: &'static capsules::led::LED<'static>,
+    led: &'static capsules::led::LED<'static, lpc43xx::gpio::GPIOPin>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
         components::process_console::Capability,
@@ -95,46 +95,52 @@ pub unsafe fn reset_handler() {
     lpc43xx::ritimer::disable_rit(); //TODO find why this is enabled at all
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     // GPIO
-    let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
-                    &lpc43xx::gpio::GPIO2[1],  /*   0   CON1_36   T_FIL1           */
-                    &lpc43xx::gpio::GPIO3[13], /*   1   CON1_34   T_COL2           */
-                    &lpc43xx::gpio::GPIO1[8],   /*   2   CON1_39   T_COL0           */
-                    &lpc43xx::gpio::GPIO2[2],   /*   3   CON1_37   T_FIL2           */
-                    &lpc43xx::gpio::GPIO2[3],   /*   4   CON1_35   T_FIL3           */
-                    &lpc43xx::gpio::GPIO2[0],   /*   5   CON1_33   T_FIL0           */
-                    &lpc43xx::gpio::GPIO3[12],  /*   6   CON1_31   T_COL1           */
-                    &lpc43xx::gpio::GPIO5[9],   /*   7   CON1_29   CAN_TD           */
-                    &lpc43xx::gpio::GPIO5[8],   /*   8   CON1_27   CAN_RD           */
-                    &lpc43xx::gpio::GPIO5[3],   /*   9   CON1_25   RS232_TXD        */
-                    &lpc43xx::gpio::GPIO5[4],   /*  10   CON1_23   RS232_RXD        */
-                    &lpc43xx::gpio::GPIO2[8],   /*  11   CON2_40   GPIO8            */
-                    &lpc43xx::gpio::GPIO3[7],   /*  12   CON2_38   GPIO7            */
-                    &lpc43xx::gpio::GPIO3[5],   /*  13   CON2_36   GPIO5            */
-                    &lpc43xx::gpio::GPIO5[15],  /*  14   CON2_34   GPIO3            */
-                    &lpc43xx::gpio::GPIO3[3],   /*  15   CON2_32   GPIO1            */
-                    &lpc43xx::gpio::GPIO2[4],   /*  16   CON2_30   LCD1             */
-                    &lpc43xx::gpio::GPIO2[5],   /*  17   CON2_28   LCD2             */
-                    &lpc43xx::gpio::GPIO2[6],   /*  18   CON2_26   LCD3             */
-                    &lpc43xx::gpio::GPIO5[12],  /*  19   CON2_24   LCDRS            */
-                    &lpc43xx::gpio::GPIO5[14],  /*  20   CON2_22   LCD4             */
-                    &lpc43xx::gpio::GPIO0[10],  /*  21   CON2_18   SPI_MISO         */
-                    &lpc43xx::gpio::GPIO0[15],  /*  22   CON2_16   ENET_TXD1        */
-                    &lpc43xx::gpio::GPIO0[13],  /*  23   CON2_14   ENET_TXD0        */
-                    &lpc43xx::gpio::GPIO0[12],  /*  24   CON2_12   ENET_MDIO        */
-                    &lpc43xx::gpio::GPIO0[3],   /*  25   CON2_10   ENET_CRS_DV      */
-                    &lpc43xx::gpio::GPIO3[15],  /*  26   CON2_08   ENET_MDC         */
-                    &lpc43xx::gpio::GPIO0[1],   /*  27   CON2_06   ENET_TXEN        */
-                    &lpc43xx::gpio::GPIO0[0],   /*  28   CON2_04   ENET_RXD1        */
-                    &lpc43xx::gpio::GPIO3[6],   /*  29   CON2_35   GPIO6            */
-                    &lpc43xx::gpio::GPIO5[16],  /*  30   CON2_33   GPIO4            */
-                    &lpc43xx::gpio::GPIO3[4],   /*  31   CON2_31   GPIO2            */
-                    &lpc43xx::gpio::GPIO3[0],   /*  32   CON2_29   GPIO0            */
-                    &lpc43xx::gpio::GPIO5[13],  /*  33   CON2_23   LCDEN            */
-                    &lpc43xx::gpio::GPIO0[11],  /*  34   CON2_21   SPI_MOSI         */
-                    &lpc43xx::gpio::GPIO0[2]   /*  35   CON2_09   ENET_RXD0 */
-                ));
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+                    lpc43xx::gpio::GPIOPin,
+                    0 => &lpc43xx::gpio::GPIO2[1],  /*   0   CON1_36   T_FIL1           */
+                    1 => &lpc43xx::gpio::GPIO3[13], /*   1   CON1_34   T_COL2           */
+                    2 => &lpc43xx::gpio::GPIO1[8],   /*   2   CON1_39   T_COL0           */
+                    3 => &lpc43xx::gpio::GPIO2[2],   /*   3   CON1_37   T_FIL2           */
+                    4 => &lpc43xx::gpio::GPIO2[3],   /*   4   CON1_35   T_FIL3           */
+                    5 => &lpc43xx::gpio::GPIO2[0],   /*   5   CON1_33   T_FIL0           */
+                    6 => &lpc43xx::gpio::GPIO3[12],  /*   6   CON1_31   T_COL1           */
+                    7 => &lpc43xx::gpio::GPIO5[9],   /*   7   CON1_29   CAN_TD           */
+                    8 => &lpc43xx::gpio::GPIO5[8],   /*   8   CON1_27   CAN_RD           */
+                    9 => &lpc43xx::gpio::GPIO5[3],   /*   9   CON1_25   RS232_TXD        */
+                    10 => &lpc43xx::gpio::GPIO5[4],   /*  10   CON1_23   RS232_RXD        */
+                    11 => &lpc43xx::gpio::GPIO2[8],   /*  11   CON2_40   GPIO8            */
+                    12 => &lpc43xx::gpio::GPIO3[7],   /*  12   CON2_38   GPIO7            */
+                    13 => &lpc43xx::gpio::GPIO3[5],   /*  13   CON2_36   GPIO5            */
+                    14 => &lpc43xx::gpio::GPIO5[15],  /*  14   CON2_34   GPIO3            */
+                    15 => &lpc43xx::gpio::GPIO3[3],   /*  15   CON2_32   GPIO1            */
+                    16 => &lpc43xx::gpio::GPIO2[4],   /*  16   CON2_30   LCD1             */
+                    17 => &lpc43xx::gpio::GPIO2[5],   /*  17   CON2_28   LCD2             */
+                    18 => &lpc43xx::gpio::GPIO2[6],   /*  18   CON2_26   LCD3             */
+                    19 => &lpc43xx::gpio::GPIO5[12],  /*  19   CON2_24   LCDRS            */
+                    20 => &lpc43xx::gpio::GPIO5[14],  /*  20   CON2_22   LCD4             */
+                    21 => &lpc43xx::gpio::GPIO0[10],  /*  21   CON2_18   SPI_MISO         */
+                    22 => &lpc43xx::gpio::GPIO0[15],  /*  22   CON2_16   ENET_TXD1        */
+                    23 => &lpc43xx::gpio::GPIO0[13],  /*  23   CON2_14   ENET_TXD0        */
+                    24 => &lpc43xx::gpio::GPIO0[12],  /*  24   CON2_12   ENET_MDIO        */
+                    25 => &lpc43xx::gpio::GPIO0[3],   /*  25   CON2_10   ENET_CRS_DV      */
+                    26 => &lpc43xx::gpio::GPIO3[15],  /*  26   CON2_08   ENET_MDC         */
+                    27 => &lpc43xx::gpio::GPIO0[1],   /*  27   CON2_06   ENET_TXEN        */
+                    28 => &lpc43xx::gpio::GPIO0[0],   /*  28   CON2_04   ENET_RXD1        */
+                    29 => &lpc43xx::gpio::GPIO3[6],   /*  29   CON2_35   GPIO6            */
+                    30 => &lpc43xx::gpio::GPIO5[16],  /*  30   CON2_33   GPIO4            */
+                    31 => &lpc43xx::gpio::GPIO3[4],   /*  31   CON2_31   GPIO2            */
+                    32 => &lpc43xx::gpio::GPIO3[0],   /*  32   CON2_29   GPIO0            */
+                    33 => &lpc43xx::gpio::GPIO5[13],  /*  33   CON2_23   LCDEN            */
+                    34 => &lpc43xx::gpio::GPIO0[11],  /*  34   CON2_21   SPI_MOSI         */
+                    35 => &lpc43xx::gpio::GPIO0[2]   /*  35   CON2_09   ENET_RXD0 */
+                    ),
+                ).finalize(components::gpio_component_buf!(lpc43xx::gpio::GPIOPin));
     // LEDS
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new(
+        components::led_component_helper!(
+            lpc43xx::gpio::GPIOPin,
              (&lpc43xx::gpio::GPIO5[0],  kernel::hil::gpio::ActivationMode::ActiveHigh),
              (&lpc43xx::gpio::GPIO5[1],  kernel::hil::gpio::ActivationMode::ActiveHigh),
              (&lpc43xx::gpio::GPIO5[2],  kernel::hil::gpio::ActivationMode::ActiveHigh),
@@ -142,15 +148,18 @@ pub unsafe fn reset_handler() {
              (&lpc43xx::gpio::GPIO1[11], kernel::hil::gpio::ActivationMode::ActiveHigh),
              (&lpc43xx::gpio::GPIO1[12], kernel::hil::gpio::ActivationMode::ActiveHigh)
             )
-        );
+        ).finalize(components::led_component_buf!(lpc43xx::gpio::GPIOPin));
     // BUTTONS
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(components::button_component_helper!(
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            lpc43xx::gpio::GPIOPin,
             (&lpc43xx::gpio::GPIO0[4],kernel::hil::gpio::ActivationMode::ActiveLow,kernel::hil::gpio::FloatingState::PullNone),
             (&lpc43xx::gpio::GPIO0[8],kernel::hil::gpio::ActivationMode::ActiveLow,kernel::hil::gpio::FloatingState::PullNone),
             (&lpc43xx::gpio::GPIO0[9],kernel::hil::gpio::ActivationMode::ActiveLow,kernel::hil::gpio::FloatingState::PullNone),
             (&lpc43xx::gpio::GPIO1[9],kernel::hil::gpio::ActivationMode::ActiveLow,kernel::hil::gpio::FloatingState::PullNone)
             ),
-    );
+    ).finalize(components::button_component_buf!(lpc43xx::gpio::GPIOPin));
     
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
