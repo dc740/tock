@@ -233,7 +233,8 @@ impl Adc {
                       + CR::SEL.val(currently_enabled | (1 << channel))
                       + CR::CLKDIV.val(clk_val)
                       + CR::BURST::ConversionsAreSoftwareControlledAndRequire11Clocks);
-        self.channel_set(channel, ChannelSetting::Enable);
+        self.enable_interrupt();
+        self.channel_set(channel as u32, ChannelSetting::Enable);
     }
     
     pub fn get_adc_clk_div(&self, rate : u32, clocks : u32) -> u32 {
@@ -255,9 +256,6 @@ impl hil::adc::Adc for Adc {
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
         self.init_adc(*channel as u8);
-        
-        self.enable_interrupt();
-        
         ReturnCode::SUCCESS
     }
 
