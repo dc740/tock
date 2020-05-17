@@ -6,7 +6,7 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::gpio::Output;
-use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMaster, SpiMasterClient};
+use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
 use kernel::{ClockInterface, ReturnCode};
 
 use crate::gpio::PinId;
@@ -197,6 +197,8 @@ pub struct Spi<'a> {
     len: Cell<usize>,
 
     transfers: Cell<u8>,
+
+    active_after: Cell<bool>,
 }
 
 pub static mut SPI1: Spi = Spi::new(
@@ -222,6 +224,8 @@ impl Spi<'a> {
             len: Cell::new(0),
 
             transfers: Cell::new(SPI_IDLE),
+
+            active_after: Cell::new(false),
         }
     }
 
@@ -271,12 +275,21 @@ impl Spi<'a> {
         }
 
         if self.transfers.get() == SPI_IN_PROGRESS {
+            // we release the line and put the SPI in IDLE as the client might
+            // initiate another SPI transfer right away
+            if !self.active_after.get() {
+                self.active_slave.map(|p| {
+                    p.get_pin().as_ref().map(|pin| {
+                        pin.set();
+                    });
+                });
+            }
+            self.transfers.set(SPI_IDLE);
             self.master_client.map(|client| {
                 self.tx_buffer
                     .take()
                     .map(|buf| client.read_write_done(buf, self.rx_buffer.take(), self.len.get()))
             });
-            self.release_low();
             self.transfers.set(SPI_IDLE);
         }
     }
@@ -340,7 +353,11 @@ impl Spi<'a> {
 
         if self.transfers.get() == 0 {
             self.registers.cr2.modify(CR2::RXNEIE::CLEAR);
-            self.hold_low();
+            self.active_slave.map(|p| {
+                p.get_pin().as_ref().map(|pin| {
+                    pin.clear();
+                });
+            });
 
             self.transfers.set(self.transfers.get() | SPI_IN_PROGRESS);
 
@@ -498,19 +515,11 @@ impl spi::SpiMaster for Spi<'a> {
     }
 
     fn hold_low(&self) {
-        self.active_slave.map(|p| {
-            p.get_pin().as_ref().map(|pin| {
-                pin.clear();
-            });
-        });
+        self.active_after.set(true);
     }
 
     fn release_low(&self) {
-        self.active_slave.map(|p| {
-            p.get_pin().as_ref().map(|pin| {
-                pin.set();
-            });
-        });
+        self.active_after.set(false);
     }
 
     fn specify_chip_select(&self, cs: Self::ChipSelect) {

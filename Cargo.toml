@@ -31,7 +31,9 @@ members = [
     "chips/nrf5x",
     "chips/sam4l",
     "chips/sifive",
-    "chips/stm32f3xx",
+    "chips/stm32f303xc",
+    "chips/stm32f429zi",
+    "chips/stm32f446re",
     "chips/stm32f4xx",
     "kernel",
     "libraries/enum_primitive",
@@ -42,6 +44,7 @@ members = [
 ]
 exclude = [
     "tools/alert_codes",
+    "tools/qemu-runner",
     "tools/sha256sum",
     "tools/usb/bulk-echo",
     "tools/usb/bulk-echo-fast",
