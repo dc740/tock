@@ -92,6 +92,7 @@ pub unsafe fn reset_handler() {
     lpc43xx::cgu::board_setup_clocking(lpc43xx::cgu::BASE_CLK::CLK_SEL::CrystalOscillator, lpc43xx::cgu::MAX_CLOCK_FREQ, true);
     lpc43xx::creg::enable_32khz_1khz_osc();
     lpc43xx::creg::enable_creg6_rmii_mode();
+    lpc43xx::eventrouter::event_router_init();
     lpc43xx::ritimer::disable_rit(); //TODO find why this is enabled at all
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     // GPIO

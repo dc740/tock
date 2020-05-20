@@ -1,6 +1,6 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
     /// Event router
 #[repr(C)]
 struct EventrouterRegisters {
@@ -562,3 +562,31 @@ SET_STAT [
 ];
 const EVENTROUTER_BASE: StaticRef<EventrouterRegisters> =
     unsafe { StaticRef::new(0x40044000 as *const EventrouterRegisters) };
+
+pub fn clear_pending_atimer_interrupt_evrt_source() {
+    EVENTROUTER_BASE.clr_stat.write(CLR_STAT::ATIMER_CLRST.val(1));
+}
+
+pub fn event_router_init()
+{
+    let mut i : u8 = 0;
+    // Clear all register to be default
+    EVENTROUTER_BASE.hilo.set(0x0000);
+    EVENTROUTER_BASE.edge.set(0x0000);
+    EVENTROUTER_BASE.clr_en.set(0xFFFF);
+    loop {
+        i+=1;
+        EVENTROUTER_BASE.clr_stat.set(0xFFFFF);
+        if EVENTROUTER_BASE.status.get() == 0 || i >= 10 {
+            break;
+        }
+    }
+}
+
+pub fn atimer_setup() {
+    /* Enable EVRT in order to be able to read the ATIMER interrupt */
+   EVENTROUTER_BASE.hilo.modify(HILO::ATIMER_L::DETECT_HIGH_LEVEL);
+   EVENTROUTER_BASE.edge.modify(EDGE::ATIMER_E::LevelDetect);
+    /* Enable Alarm Timer Source */
+    EVENTROUTER_BASE.set_en.write(SET_EN::ATIMER_SETEN.val(1));
+}

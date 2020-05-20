@@ -10,6 +10,8 @@ use kernel::common::cells::OptionalCell;
 use kernel::hil::time::{self, Alarm, Time, Frequency};
 use kernel::hil::Controller;
 
+use crate::{eventrouter,nvic};
+
     /// Alarm timer
 #[repr(C)]
 struct AtimerRegisters {
@@ -60,11 +62,16 @@ impl Controller for AlarmTimer<'a> {
 
 
 impl AlarmTimer<'a> {
+    
+    fn clear_interrupts(&self) {
+        self.clear_alarm();
+        eventrouter::clear_pending_atimer_interrupt_evrt_source();
+    }
     /// Clears the alarm bit in the status register (indicating the alarm value
     /// has been reached).
     fn clear_alarm(&self) {
         let regs: &AtimerRegisters = &*self.registers;
-        regs.clr_stat.set(0);
+        regs.clr_stat.set(1);
     }
 
     /// Enables the AlarmTimer registers
@@ -87,12 +94,20 @@ impl AlarmTimer<'a> {
 
     fn enable_alarm_irq(&self) {
         //let regs: &AtimerRegisters = &*self.registers;
-        // TODO: isn't it enabled when we call enable()?
+        unsafe {
+            let n = cortexm4::nvic::Nvic::new(nvic::USART2);
+            n.clear_pending();
+            n.enable();
+        }
     }
 
     fn disable_alarm_irq(&self) {
         //let regs: &AtimerRegisters = &*self.registers;
-        // TODO: same as above
+        unsafe {
+            let n = cortexm4::nvic::Nvic::new(nvic::USART2);
+            n.clear_pending();
+            n.disable();
+        }
     }
 
     fn get_counter(&self) -> u32 {
@@ -101,7 +116,7 @@ impl AlarmTimer<'a> {
     }
 
     pub fn handle_interrupt(&mut self) {
-        self.clear_alarm();
+        self.clear_interrupts();
         self.callback.map(|cb| {
             cb.fired();
         });
@@ -137,13 +152,11 @@ impl Alarm<'a> for AlarmTimer<'a> {
 
     fn set_alarm(&self, tics: u32) {
         let regs: &AtimerRegisters = &*self.registers;
-
-        // Clear any alarm event that may be pending before setting the new alarm.
-        self.clear_alarm();
-
         regs.preset.set(tics);
-
+        eventrouter::atimer_setup();
         self.enable_alarm_irq();
+        // Clear any alarm event that may be pending before setting the new alarm.
+        self.clear_interrupts();
         self.enable();
     }
 

@@ -560,10 +560,10 @@ impl<'a> Usart<'a> {
         }
         // You NEED to read IIR, or the interrupt DOES NOT get cleared
         let iir = self.registers.fcr.get();
-        if iir & 3 == 2 { // Pending interrupt with THREIE flag
+        if iir & 2 != 0 { // Pending interrupt with THREIE flag
             self.tx.take().map(|mut tx| {
                 // send out the buffer if available, IRQ when TX FIFO empty will bring us back
-                if self.is_tx_fifo_available() && tx.index < tx.length {
+                if tx.index < tx.length {
                         self.put_byte(tx.buffer[tx.index]);
                         tx.index += 1;
                 }

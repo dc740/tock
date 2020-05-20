@@ -27,9 +27,9 @@ pub mod creg;
 /*pub mod dac;
 pub mod eeprom;
 pub mod emc;
-pub mod ethernet;
+pub mod ethernet;*/
 pub mod eventrouter;
-pub mod gima;
+/*pub mod gima;
 pub mod gpdma;
 pub mod gpio_group_int0;
 pub mod gpio_group_int1;*/
