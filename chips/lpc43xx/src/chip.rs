@@ -51,10 +51,8 @@ impl Chip for Lpc43xx {
                             panic!("unhandled interrupt {}", interrupt);
                         }
                     }
-                    
                     let n = cortexm4::nvic::Nvic::new(interrupt);
                     n.clear_pending();
-                    n.enable();
                 } else {
                     break;
                 }
