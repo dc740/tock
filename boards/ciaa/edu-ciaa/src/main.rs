@@ -211,15 +211,32 @@ pub unsafe fn reset_handler() {
 
     // # TIMER
     let atimer = &lpc43xx::atimer::ATIMER;
+    atimer.setup(); 
+    
     let mux_alarm = static_init!(
         MuxAlarm<'static, lpc43xx::atimer::AlarmTimer>,
-        MuxAlarm::new(&lpc43xx::atimer::ATIMER)
+        MuxAlarm::new(atimer)
     );
-    atimer.configure(mux_alarm);
-    let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(lpc43xx::atimer::AlarmTimer));
+    kernel::hil::time::Alarm::set_client(&lpc43xx::atimer::ATIMER, mux_alarm);
     
+    let virtual_alarm_user = static_init!(
+        VirtualMuxAlarm<'static, lpc43xx::atimer::AlarmTimer>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    let alarm = static_init!(
+        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, lpc43xx::atimer::AlarmTimer>>,
+        capsules::alarm::AlarmDriver::new(
+            virtual_alarm_user,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    kernel::hil::time::Alarm::set_client(virtual_alarm_user, alarm);
     
+    //let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
+    //    .finalize(components::alarm_component_helper!(lpc43xx::atimer::AlarmTimer));
+    //use crate::kernel::hil::time::Alarm;
+    //lpc43xx::atimer::ATIMER.set_client(alarm);
+
     let platform = EduCiaaNXP {
             adc,
             alarm,

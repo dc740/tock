@@ -48,19 +48,19 @@ pub static mut ATIMER: AlarmTimer<'static> = AlarmTimer {
     callback: OptionalCell::empty(),
 };
 
-impl Controller for AlarmTimer<'a> {
-    type Config = &'static dyn time::AlarmClient;
-
-    fn configure(&self, client: &'a dyn time::AlarmClient) {
-        self.callback.set(client);
-        self.clear();
-        eventrouter::atimer_setup();
-        self.disable();
-    }
-}
-
 
 impl AlarmTimer<'a> {
+    pub fn setup(&self) {
+        let regs: &AtimerRegisters = &*self.registers;
+        regs.preset.set((core::u16::MAX - 1).into());
+        self.clear_register();
+        eventrouter::atimer_setup();
+        self.clear();
+        self.disable();
+    }
+    fn set_client(&self, client: &'a dyn time::AlarmClient) {
+        self.callback.set(client);
+    }
     
     fn clear(&self) {
         self.clear_register();
@@ -74,7 +74,7 @@ impl AlarmTimer<'a> {
     }
 
     /// Enables the AlarmTimer registers
-    fn enable(&self) {
+    fn enable_registers(&self) {
         let regs: &AtimerRegisters = &*self.registers;
         regs.set_en.set(1);
     }
@@ -146,7 +146,7 @@ impl Time for AlarmTimer<'a> {
 
 impl Alarm<'a> for AlarmTimer<'a> {
     fn set_client(&self, client: &'a dyn time::AlarmClient) {
-        self.callback.set(client);
+        AlarmTimer::set_client(self, client);
     }
 
     fn set_alarm(&self, tics: u32) {
@@ -155,7 +155,7 @@ impl Alarm<'a> for AlarmTimer<'a> {
         self.enable_alarm_irq();
         // Clear any alarm event that may be pending before setting the new alarm.
         self.clear();
-        self.enable();
+        self.enable_registers();
     }
 
     fn get_alarm(&self) -> u32 {
@@ -165,11 +165,11 @@ impl Alarm<'a> for AlarmTimer<'a> {
 
     fn disable(&self) {
         self.disable_alarm_irq();
-        self.disable_registers();
         self.clear();
+        self.disable_registers();
     }
 
     fn is_enabled(&self) -> bool {
-        self.is_alarm_enabled()
+        AlarmTimer::is_alarm_enabled(self)
     }
 }
