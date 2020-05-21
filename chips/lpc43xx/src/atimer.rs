@@ -53,23 +53,22 @@ impl Controller for AlarmTimer<'a> {
 
     fn configure(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
-
+        self.clear();
+        eventrouter::atimer_setup();
         self.disable();
-        self.disable_alarm_irq();
-        self.clear_alarm();
     }
 }
 
 
 impl AlarmTimer<'a> {
     
-    fn clear_interrupts(&self) {
-        self.clear_alarm();
+    fn clear(&self) {
+        self.clear_register();
         eventrouter::clear_pending_atimer_interrupt_evrt_source();
     }
     /// Clears the alarm bit in the status register (indicating the alarm value
     /// has been reached).
-    fn clear_alarm(&self) {
+    fn clear_register(&self) {
         let regs: &AtimerRegisters = &*self.registers;
         regs.clr_stat.set(1);
     }
@@ -81,7 +80,7 @@ impl AlarmTimer<'a> {
     }
 
     /// Disable the AlarmTimer registers
-    fn disable(&self) {
+    fn disable_registers(&self) {
         let regs: &AtimerRegisters = &*self.registers;
         regs.clr_en.set(1);
     }
@@ -116,7 +115,7 @@ impl AlarmTimer<'a> {
     }
 
     pub fn handle_interrupt(&mut self) {
-        self.clear_interrupts();
+        self.disable();
         self.callback.map(|cb| {
             cb.fired();
         });
@@ -153,10 +152,9 @@ impl Alarm<'a> for AlarmTimer<'a> {
     fn set_alarm(&self, tics: u32) {
         let regs: &AtimerRegisters = &*self.registers;
         regs.preset.set(tics);
-        eventrouter::atimer_setup();
         self.enable_alarm_irq();
         // Clear any alarm event that may be pending before setting the new alarm.
-        self.clear_interrupts();
+        self.clear();
         self.enable();
     }
 
@@ -167,8 +165,8 @@ impl Alarm<'a> for AlarmTimer<'a> {
 
     fn disable(&self) {
         self.disable_alarm_irq();
-        self.disable();
-        self.clear_alarm();
+        self.disable_registers();
+        self.clear();
     }
 
     fn is_enabled(&self) -> bool {
