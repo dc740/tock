@@ -24,6 +24,7 @@ TOCKLOADER_OPENOCD_FLAGS = --openocd --arch $(TOCK_ARCH) --board $(BOARD) --open
 # Upload the kernel over JTAG
 .PHONY: flash
 flash: target/$(TARGET)/release/$(PLATFORM).bin
+	./checksum_calc.py $<
 	$(Q)$(OOCD) -f $(OOCD_SCRIPT) \
 		-c "init" \
 		-c "halt 0" \
