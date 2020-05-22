@@ -29,6 +29,7 @@ flash: target/$(TARGET)/release/$(PLATFORM).bin
 		-c "init" \
 		-c "halt 0" \
 		-c "flash write_image erase $< 0x1A000000 bin" \
+		-c "verify_image $< 0x1A000000" \
 		-c "reset run" \
 		-c "shutdown" 2>&1
 	
