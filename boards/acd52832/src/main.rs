@@ -1,7 +1,9 @@
 //! Tock kernel for the Aconno ACD52832 board based on the Nordic nRF52832 MCU.
 
 #![no_std]
-#![no_main]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -444,7 +446,6 @@ pub unsafe fn reset_handler() {
 
     nrf52832::clock::CLOCK.low_set_source(nrf52832::clock::LowClockSource::XTAL);
     nrf52832::clock::CLOCK.low_start();
-    nrf52832::clock::CLOCK.high_set_source(nrf52832::clock::HighClockSource::XTAL);
     nrf52832::clock::CLOCK.high_start();
     while !nrf52832::clock::CLOCK.low_started() {}
     while !nrf52832::clock::CLOCK.high_started() {}

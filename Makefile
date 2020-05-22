@@ -20,11 +20,12 @@ usage:
 	@echo "          alldoc: Builds Tock documentation for all boards"
 	@echo "           audit: Audit Cargo dependencies for all kernel sources"
 	@echo "              ci: Run all continuous integration tests"
-	@echo " emulation-setup: Setup QEMU for the emulation tests"
-	@echo " emulation-check: Run the emulation tests for supported boards"
 	@echo "           clean: Clean all builds"
+	@echo "          clippy: Runs the clippy code linter with Tock's default arguments"
+	@echo " emulation-check: Run the emulation tests for supported boards"
+	@echo " emulation-setup: Setup QEMU for the emulation tests"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
-	@echo "       formatall: Runs all formatting tools"
+	@echo "    format-check: Checks if the rustfmt tool would require changes, but doesn't make them"
 	@echo "            list: Lists available boards"
 	@echo
 	@echo "$$(tput bold)Happy Hacking!$$(tput sgr0)"
@@ -61,7 +62,7 @@ ci: ci-travis ci-netlify
 
 .PHONY: ci-travis
 ci-travis:\
-	ci-formatting\
+	ci-lints\
 	ci-tools\
 	ci-libraries\
 	ci-archs\
@@ -70,8 +71,7 @@ ci-travis:\
 	ci-syntax\
 	ci-compilation\
 	ci-debug-support-targets\
-	ci-documentation \
-	emulation-check
+	ci-documentation
 	@printf "$$(tput bold)********************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI-Travis: Done! *$$(tput sgr0)\n"
 	@printf "$$(tput bold)********************$$(tput sgr0)\n"
@@ -92,7 +92,8 @@ ci-cargo-tests:\
 
 .PHONY: ci-format
 ci-format:\
-	ci-formatting\
+	format-check\
+	clippy\
 	ci-documentation\
 
 .PHONY: ci-build
@@ -108,13 +109,13 @@ ci-tests:\
 
 ## Actual Rules (Travis)
 
-.PHONY: ci-formatting
-ci-formatting:
-	@printf "$$(tput bold)******************$$(tput sgr0)\n"
-	@printf "$$(tput bold)* CI: Formatting *$$(tput sgr0)\n"
-	@printf "$$(tput bold)******************$$(tput sgr0)\n"
-	@CI=true ./tools/run_cargo_fmt.sh diff
-	@./tools/check_wildcard_imports.sh
+.PHONY: ci-lints
+ci-lints:
+	@printf "$$(tput bold)**************************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Formatting + Lints *$$(tput sgr0)\n"
+	@printf "$$(tput bold)**************************$$(tput sgr0)\n"
+	@$(MAKE) format-check
+	@$(MAKE) clippy
 
 .PHONY: ci-tools
 ci-tools:
@@ -215,16 +216,26 @@ audit:
 emulation-setup: SHELL:=/usr/bin/env bash
 emulation-setup:
 	@#Use the latest QEMU as it has OpenTitan support
+	@printf "Buildling QEMU, this could take a few minutes\n\n"
 	@if [[ ! -d tools/qemu || ! -f tools/qemu/VERSION ]]; then \
 		rm -rf tools/qemu; \
-		cd tools; git clone https://github.com/qemu/qemu.git; \
+		cd tools; git clone https://github.com/alistair23/qemu.git --depth 1 -b riscv-tock.next; \
 		cd qemu; ./configure --target-list=riscv32-softmmu; \
 	fi
-	@$(MAKE) -C "tools/qemu" > /dev/null
+	@$(MAKE) -C "tools/qemu" || (echo "You might need to install some missing packages" || exit 127)
+	@printf "Downloading OpenTitan boot rom from: 2aedf641120665b91c3a5d5aa214175d09f71ee6\n"
+	$(eval CURRENT_DIR := $(shell pwd))
+	@pushd `mktemp -d -t`; \
+		curl `curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/13066/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38` --output opentitan-dist.zip; \
+		unzip opentitan-dist.zip; \
+		tar  -xf opentitan-dist/opentitan-snapshot-20191101-*.tar.xz; \
+		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $(CURRENT_DIR)/opentitan-boot-rom.elf
+
 
 .PHONY: emulation-check
 emulation-check: emulation-setup
 	@$(MAKE) -C "boards/hifive1"
+	@$(MAKE) -C "boards/opentitan"
 	@cd tools/qemu-runner; PATH="$(shell pwd)/tools/qemu/riscv32-softmmu/:${PATH}" cargo run
 
 .PHONY: clean
@@ -234,10 +245,17 @@ clean:
 	@echo "$$(tput bold)Clean rustdoc" && rm -Rf doc/rustdoc
 	@echo "$$(tput bold)Clean ci-artifacts" && rm -Rf ./ci-artifacts
 
-.PHONY: fmt format formatall
-fmt format formatall:
+.PHONY: fmt format
+fmt format:
 	@./tools/run_cargo_fmt.sh
-	@./tools/check_wildcard_imports.sh
+
+.PHONY: format-check
+format-check:
+	@CI=true ./tools/run_cargo_fmt.sh diff
+
+.PHONY: clippy
+clippy:
+	@./tools/run_clippy.sh
 
 .PHONY: list list-boards list-platforms
 list list-boards list-platforms:

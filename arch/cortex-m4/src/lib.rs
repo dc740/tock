@@ -134,11 +134,45 @@ pub unsafe extern "C" fn generic_isr() {
     //
     str r0, [r3, r2, lsl #2]
 
+    /* The pending bit in ISPR might be reset by hardware for pulse interrupts
+     * at this point. So set it here again so the interrupt does not get lost
+     * in service_pending_interrupts()
+     * */
+    /* r3 = &NVIC.ISPR */
+    mov r3, #0xe200
+    movt r3, #0xe000
+    /* Set pending bit */
+    str r0, [r3, r2, lsl #2]
+
     // Now we can return from the interrupt context and resume what we were
     // doing. If an app was executing we will switch to the kernel so it can
     // choose whether to service the interrupt.
     "
     : : : : "volatile" );
+}
+
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn unhandled_interrupt() {
+    unimplemented!()
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+pub unsafe extern "C" fn unhandled_interrupt() {
+    let mut interrupt_number: u32;
+
+    // IPSR[8:0] holds the currently active interrupt
+    asm!(
+    "mrs    r0, ipsr                    "
+    : "={r0}"(interrupt_number)
+    :
+    : "r0"
+    :
+    );
+
+    interrupt_number = interrupt_number & 0x1ff;
+
+    panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }
 
 // Mock implementation for tests on Travis-CI.
