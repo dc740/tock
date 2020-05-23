@@ -55,7 +55,7 @@ impl Controller for AlarmTimer<'a> {
     fn configure(&self, client: &'a dyn time::AlarmClient) {
         let regs: &AtimerRegisters = &*self.registers;
         self.callback.set(client);
-        regs.preset.set((core::u16::MAX - 1).into());
+        regs.preset.set(0);
         self.clear_register();
         eventrouter::atimer_setup();
         self.clear();
