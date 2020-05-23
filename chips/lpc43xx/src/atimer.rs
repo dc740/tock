@@ -105,7 +105,6 @@ impl AlarmTimer<'a> {
         //let regs: &AtimerRegisters = &*self.registers;
         unsafe {
             let n = cortexm4::nvic::Nvic::new(nvic::ATIMER);
-            n.clear_pending();
             n.enable();
         }
     }
@@ -161,10 +160,9 @@ impl Alarm<'a> for AlarmTimer<'a> {
 
     fn set_alarm(&self, tics: u32) {
         let regs: &AtimerRegisters = &*self.registers;
+        self.clear();
         regs.preset.set(tics);
         self.enable_alarm_irq();
-        // Clear any alarm event that may be pending before setting the new alarm.
-        self.clear();
         self.enable_registers();
     }
 
