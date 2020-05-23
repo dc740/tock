@@ -23,7 +23,7 @@ TOCKLOADER_OPENOCD_FLAGS = --openocd --arch $(TOCK_ARCH) --board $(BOARD) --open
 
 # Upload the kernel over JTAG
 .PHONY: flash
-flash: target/$(TARGET)/release/$(PLATFORM).bin
+flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	./checksum_calc.py $<
 	$(Q)$(OOCD) -f $(OOCD_SCRIPT) \
 		-c "init" \
@@ -43,4 +43,4 @@ program: target/$(TARGET)/release/$(PLATFORM).bin
 # Upload a sample program from internet
 # ftdi_lpc4337.cfg must be present in the openocd board folder (ie: /usr/share/openocd/scripts/board)
 load_blinky:
-	tockloader  install blink --openocd --arch cortex-m4 --board edu-ciaa --openocd-board ftdi_lpc4337.cfg -a 0x000000001a040000 --openocd-options "noreset" --page-size 512
+	tockloader  install blink --board edu-ciaa
