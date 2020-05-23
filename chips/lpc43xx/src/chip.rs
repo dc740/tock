@@ -4,6 +4,7 @@ use kernel::Chip;
 use core::fmt::Write;
 use crate::adc;
 use crate::atimer;
+use crate::eventrouter;
 use crate::gpio;
 use crate::nvic;
 
@@ -38,7 +39,9 @@ impl Chip for Lpc43xx {
                     match interrupt {
                         nvic::ADC0 => adc::ADC0.handle_interrupt(),
                         nvic::ADC1 => adc::ADC1.handle_interrupt(),
-                        nvic::ATIMER => atimer::ATIMER.handle_interrupt(),
+                        //this is not used. This handler is called from the eventrouter interrupt
+                        nvic::ATIMER => atimer::ATIMER.handle_interrupt(), 
+                        nvic::EVENTROUTER => eventrouter::handle_interrupt(), 
                         nvic::PIN_INT0 => gpio::GPIO0[4].handle_interrupt(),
                         nvic::PIN_INT1 => gpio::GPIO0[8].handle_interrupt(),
                         nvic::PIN_INT2 => gpio::GPIO0[9].handle_interrupt(),
@@ -48,6 +51,14 @@ impl Chip for Lpc43xx {
                             // This handler should work with JLink GDB to unwind the stack trace
 //                            asm!("bkpt #10
 //                            bx lr"::::);
+                                asm!(
+                                    "mov r0, $0
+                                    bkpt #1"
+                                    :                                          // outputs
+                                    :  "r"(interrupt)                          // inputs
+                                    :   "r0"                                 // clobbers
+                                    :                                          // no options
+                                    );
                             panic!("unhandled interrupt {}", interrupt);
                         }
                     }

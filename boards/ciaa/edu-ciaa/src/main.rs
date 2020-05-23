@@ -16,8 +16,9 @@ use kernel::capabilities;
 
 
 use capsules::alarm::AlarmDriver;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_alarm::VirtualMuxAlarm;
 use components;
+use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
 use components::console::{ConsoleComponent, UartMuxComponent};
 use components::debug_writer::DebugWriterComponent;
 use components::process_console::ProcessConsoleComponent;
@@ -25,7 +26,7 @@ use kernel::hil::Controller;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 
-use components::alarm::AlarmDriverComponent;
+
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -211,8 +212,8 @@ pub unsafe fn reset_handler() {
 
     // # TIMER
     let atimer = &lpc43xx::atimer::ATIMER;
-    atimer.setup(); 
-    
+    /*
+    1st way of doing this: (muxed alarm)
     let mux_alarm = static_init!(
         MuxAlarm<'static, lpc43xx::atimer::AlarmTimer>,
         MuxAlarm::new(atimer)
@@ -230,12 +231,19 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    kernel::hil::time::Alarm::set_client(virtual_alarm_user, alarm);
+    kernel::hil::time::Alarm::set_client(virtual_alarm_user, alarm);*/
+    /*
+    2nd way: (simple alarm)
+    let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
+        .finalize(components::alarm_component_helper!(lpc43xx::atimer::AlarmTimer));
+    use crate::kernel::hil::time::Alarm;
+    lpc43xx::atimer::ATIMER.set_client(alarm);*/
     
-    //let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
-    //    .finalize(components::alarm_component_helper!(lpc43xx::atimer::AlarmTimer));
-    //use crate::kernel::hil::time::Alarm;
-    //lpc43xx::atimer::ATIMER.set_client(alarm);
+    let mux_alarm = AlarmMuxComponent::new(atimer)
+        .finalize(components::alarm_mux_component_helper!(lpc43xx::atimer::AlarmTimer));
+    atimer.configure(mux_alarm);
+    let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
+        .finalize(components::alarm_component_helper!(lpc43xx::atimer::AlarmTimer));
 
     let platform = EduCiaaNXP {
             adc,

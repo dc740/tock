@@ -48,26 +48,36 @@ pub static mut ATIMER: AlarmTimer<'static> = AlarmTimer {
     callback: OptionalCell::empty(),
 };
 
-
-impl AlarmTimer<'a> {
-    pub fn setup(&self) {
+impl Controller for AlarmTimer<'a> {
+    type Config = &'static dyn time::AlarmClient;
+#[no_mangle]
+#[inline(never)]
+    fn configure(&self, client: &'a dyn time::AlarmClient) {
         let regs: &AtimerRegisters = &*self.registers;
+        self.callback.set(client);
         regs.preset.set((core::u16::MAX - 1).into());
         self.clear_register();
         eventrouter::atimer_setup();
         self.clear();
         self.disable();
     }
+}
+
+impl AlarmTimer<'a> {
     fn set_client(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
     }
     
+#[no_mangle]
+#[inline(never)]    
     fn clear(&self) {
         self.clear_register();
         eventrouter::clear_pending_atimer_interrupt_evrt_source();
     }
     /// Clears the alarm bit in the status register (indicating the alarm value
     /// has been reached).
+#[no_mangle]
+#[inline(never)]
     fn clear_register(&self) {
         let regs: &AtimerRegisters = &*self.registers;
         regs.clr_stat.set(1);
@@ -94,7 +104,7 @@ impl AlarmTimer<'a> {
     fn enable_alarm_irq(&self) {
         //let regs: &AtimerRegisters = &*self.registers;
         unsafe {
-            let n = cortexm4::nvic::Nvic::new(nvic::USART2);
+            let n = cortexm4::nvic::Nvic::new(nvic::ATIMER);
             n.clear_pending();
             n.enable();
         }
@@ -103,7 +113,7 @@ impl AlarmTimer<'a> {
     fn disable_alarm_irq(&self) {
         //let regs: &AtimerRegisters = &*self.registers;
         unsafe {
-            let n = cortexm4::nvic::Nvic::new(nvic::USART2);
+            let n = cortexm4::nvic::Nvic::new(nvic::ATIMER);
             n.clear_pending();
             n.disable();
         }
@@ -115,7 +125,7 @@ impl AlarmTimer<'a> {
     }
 
     pub fn handle_interrupt(&mut self) {
-        self.disable();
+        self.clear();
         self.callback.map(|cb| {
             cb.fired();
         });

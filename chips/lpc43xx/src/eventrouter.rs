@@ -1,6 +1,9 @@
 
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+
+use crate::atimer;
+
     /// Event router
 #[repr(C)]
 struct EventrouterRegisters {
@@ -563,6 +566,8 @@ SET_STAT [
 const EVENTROUTER_BASE: StaticRef<EventrouterRegisters> =
     unsafe { StaticRef::new(0x40044000 as *const EventrouterRegisters) };
 
+#[no_mangle]
+#[inline(never)]
 pub fn clear_pending_atimer_interrupt_evrt_source() {
     EVENTROUTER_BASE.clr_stat.write(CLR_STAT::ATIMER_CLRST.val(1));
 }
@@ -589,4 +594,25 @@ pub fn atimer_setup() {
    EVENTROUTER_BASE.edge.modify(EDGE::ATIMER_E::LevelDetect);
     /* Enable Alarm Timer Source */
     EVENTROUTER_BASE.set_en.write(SET_EN::ATIMER_SETEN.val(1));
+}
+
+pub fn handle_interrupt()
+{
+    unsafe {
+        if EVENTROUTER_BASE.status.is_set(STATUS::ATIMER_ST) {
+                // let the static atimer instance handle it
+                atimer::ATIMER.handle_interrupt();
+        } /*else {
+            let interrupt = EVENTROUTER_BASE.status.get();
+                asm!(
+        "mov r0, $0
+        bkpt #1"
+        :                                          // outputs
+        :  "r"(interrupt)                          // inputs
+        :   "r0"                                 // clobbers
+        :                                          // no options
+        );
+            panic!("Unhandled eventrouter interrupt {}", interrupt);
+        }*/
+    }
 }

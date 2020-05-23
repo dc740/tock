@@ -27,7 +27,8 @@ impl Write for Writer {
     }
 
 }
-
+#[no_mangle]
+#[inline(never)]
 fn flush(writer : &mut Writer)  {
     let message = match str::from_utf8(&writer.panic_buffer){
            Err(_e) => "Unable to read kernel panic dump",

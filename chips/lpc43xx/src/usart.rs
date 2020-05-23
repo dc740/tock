@@ -706,8 +706,7 @@ impl<'a> Usart<'a> {
 // ################# TOCKOS required code below ##################
 
 impl<'a> kernel::hil::uart::Configure for Usart<'a> {
-    #[inline(never)]
-    #[no_mangle]
+
     fn configure(&self, params: kernel::hil::uart::Parameters) -> ReturnCode {
         // These could easily be implemented, but are currently ignored, so
         // throw an error.
