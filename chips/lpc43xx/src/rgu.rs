@@ -424,3 +424,8 @@ RESET_ACTIVE_STATUS1 [
 ];
 const RGU_BASE: StaticRef<RguRegisters> =
     unsafe { StaticRef::new(0x40053000 as *const RguRegisters) };
+    
+pub fn timer1_trigger_reset(){
+    RGU_BASE.reset_ctrl1.write(RESET_CTRL1::TIMER1_RST.val(1));
+    while !RGU_BASE.reset_active_status1.is_set(RESET_ACTIVE_STATUS1::TIMER1_RST){}
+}

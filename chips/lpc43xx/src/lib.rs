@@ -17,8 +17,8 @@ pub mod chip;
 // I commented out the files that have invalid definitions from svd2regs.py
 /*pub mod adchs;*/
 pub mod adc;
-pub mod atimer;
-/*pub mod c_can0;
+/*pub mod atimer;
+pub mod c_can0;
 pub mod c_can1;*/
 pub mod ccu1;
 /*pub mod ccu2;*/
@@ -27,9 +27,9 @@ pub mod creg;
 /*pub mod dac;
 pub mod eeprom;
 pub mod emc;
-pub mod ethernet;*/
+pub mod ethernet;
 pub mod eventrouter;
-/*pub mod gima;
+pub mod gima;
 pub mod gpdma;
 pub mod gpio_group_int0;
 pub mod gpio_group_int1;*/
@@ -42,8 +42,8 @@ pub mod nvic;
 /*pub mod mcpwm;
 pub mod pmc;
 pub mod qei;
-pub mod regfile;
-pub mod rgu;*/
+pub mod regfile;*/
+pub mod rgu;
 pub mod ritimer;
 /*pub mod rtc;
 pub mod sct;*/
@@ -52,9 +52,9 @@ pub mod scu;
 pub mod sgpio;
 pub mod spifi;
 pub mod spi;
-pub mod ssp;
+pub mod ssp;*/
 pub mod timer;
-pub mod uart1;*/
+//pub mod uart1;
 pub mod usart;/*
 pub mod usb0;
 pub mod usb1;

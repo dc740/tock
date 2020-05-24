@@ -1041,3 +1041,9 @@ fn get_raw_value_from_field_value<R>(field: Field<u32, R>, composed_value : Fiel
 pub fn get_adc_base_clk() -> FieldValue<u32,BASE_CLK::Register> {
     BASE_CLK::CLK_SEL.val(CGU_BASE.base_apb3_clk.read(BASE_CLK::CLK_SEL))
 }
+
+// Timer functions
+///All timers0/1/2/3 have m4 base clock
+pub fn get_timer_base_clk() -> FieldValue<u32,BASE_CLK::Register> {
+    BASE_CLK::CLK_SEL.val(CGU_BASE.base_m4_clk.read(BASE_CLK::CLK_SEL))
+}

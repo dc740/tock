@@ -274,6 +274,14 @@ CLK_CFG [
 const CCU1_BASE: StaticRef<Ccu1Registers> =
     unsafe { StaticRef::new(0x40051000 as *const Ccu1Registers) };
 
+/* UART 2 init */
+pub fn uart2_init() {
+    CCU1_BASE.clk_m4_usart2_cfg.write(CLK_CFG::AUTO::AutoIsEnabled + CLK_CFG::WAKEUP::WakeUpIsEnabled + CLK_CFG::RUN::ClockIsEnabled)
+}
+
+pub fn timer1_init() {
+    CCU1_BASE.clk_m4_timer1_cfg.write(CLK_CFG::RUN::ClockIsEnabled)
+}
 
 pub fn adc_clock_init(adc : u8) {
     if adc == 0 {
@@ -282,11 +290,6 @@ pub fn adc_clock_init(adc : u8) {
         CCU1_BASE.clk_apb3_adc1_cfg.write(CLK_CFG::AUTO::AutoIsEnabled + CLK_CFG::WAKEUP::WakeUpIsEnabled + CLK_CFG::RUN::ClockIsEnabled)
     }
     
-}
-
-/* UART 2 init */
-pub fn uart2_init() {
-    CCU1_BASE.clk_m4_usart2_cfg.write(CLK_CFG::AUTO::AutoIsEnabled + CLK_CFG::WAKEUP::WakeUpIsEnabled + CLK_CFG::RUN::ClockIsEnabled)
 }
 
 pub fn get_uart2_rate() -> u32 {
@@ -326,6 +329,36 @@ pub fn get_adc_rate(adc_index : u8) -> u32 {
         rate = cgu::get_clock_input_hz(cgu::get_adc_base_clk());
         /* Get divider for this clock */
         if ((adc_cfg_reg.get() >> 5) & 0x7) == 0 {
+            div = 1;
+        }
+        else {
+            div = 2;/* No other dividers supported */
+        }
+        rate = rate / div;
+    }
+    else {
+        rate = 0;
+    }
+
+    rate
+}
+
+pub fn get_timer_rate(timer_index : u8) -> u32 {
+    let cfg_reg;
+    let mut rate : u32;
+    let div : u32;
+    match timer_index {
+        0=> cfg_reg = &CCU1_BASE.clk_m4_timer0_cfg,
+        1=> cfg_reg = &CCU1_BASE.clk_m4_timer1_cfg,
+        2=> cfg_reg = &CCU1_BASE.clk_m4_timer2_cfg,
+        _=> cfg_reg = &CCU1_BASE.clk_m4_timer3_cfg
+    }
+    
+    if cfg_reg.matches_all(CLK_CFG::RUN::ClockIsEnabled) {
+        //base clock is CLK_BASE_UART2: CGU_BASE.base_uart2_clk
+        rate = cgu::get_clock_input_hz(cgu::get_timer_base_clk());
+        /* Get divider for this clock */
+        if ((cfg_reg.get() >> 5) & 0x7) == 0 {
             div = 1;
         }
         else {

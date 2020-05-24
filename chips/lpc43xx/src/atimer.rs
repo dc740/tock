@@ -6,12 +6,6 @@
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 
-use kernel::common::cells::OptionalCell;
-use kernel::hil::time::{self, Alarm, Time, Frequency};
-use kernel::hil::Controller;
-
-use crate::{eventrouter,nvic};
-
     /// Alarm timer
 #[repr(C)]
 struct AtimerRegisters {
@@ -37,7 +31,9 @@ set_stat: WriteOnly<u32>,
 
 const ATIMER_BASE: StaticRef<AtimerRegisters> =
     unsafe { StaticRef::new(0x40040000 as *const AtimerRegisters) };
-
+/*
+DEPRECATED: the atimer pheripheral cannot be used with the Alarm and Time traits.
+You need a counter that goes up, and the alarm timer uses a downcounter
 pub struct AlarmTimer<'a> {
     registers: StaticRef<AtimerRegisters>,
     callback: OptionalCell<&'a dyn time::AlarmClient>,
@@ -181,3 +177,4 @@ impl Alarm<'a> for AlarmTimer<'a> {
         AlarmTimer::is_alarm_enabled(self)
     }
 }
+*/

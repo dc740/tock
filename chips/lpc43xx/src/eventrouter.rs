@@ -2,8 +2,6 @@
 use kernel::common::StaticRef;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
 
-use crate::atimer;
-
     /// Event router
 #[repr(C)]
 struct EventrouterRegisters {
@@ -598,11 +596,13 @@ pub fn atimer_setup() {
 
 pub fn handle_interrupt()
 {
+    //do nothing with event router interrupts for now...
+    /*
     unsafe {
         if EVENTROUTER_BASE.status.is_set(STATUS::ATIMER_ST) {
                 // let the static atimer instance handle it
                 atimer::ATIMER.handle_interrupt();
-        } /*else {
+        } else {
             let interrupt = EVENTROUTER_BASE.status.get();
                 asm!(
         "mov r0, $0
@@ -612,7 +612,8 @@ pub fn handle_interrupt()
         :   "r0"                                 // clobbers
         :                                          // no options
         );
-            panic!("Unhandled eventrouter interrupt {}", interrupt);
-        }*/
-    }
+       
+        }
+    }*/
+         //panic!("Unhandled eventrouter interrupt");
 }

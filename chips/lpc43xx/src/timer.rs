@@ -1,6 +1,12 @@
 
 use kernel::common::StaticRef;
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::common::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::common::cells::OptionalCell;
+use kernel::hil::time::{self, Alarm, Time, Frequency};
+use kernel::hil::Controller;
+
+use crate::{ccu1, nvic, rgu};
+
     /// Timer0/1/2/3
 #[repr(C)]
 struct TimerRegisters {
@@ -17,13 +23,7 @@ pc: ReadWrite<u32>,
 /// Match Control Register. The MCR is used to control if an interrupt is generated
 mcr: ReadWrite<u32, MCR::Register>,
 /// Match Register 0. MR0 can be enabled through the MCR to reset the TC, stop both
-mr0: ReadWrite<u32>,
-/// Match Register 0. MR0 can be enabled through the MCR to reset the TC, stop both
-mr1: ReadWrite<u32>,
-/// Match Register 0. MR0 can be enabled through the MCR to reset the TC, stop both
-mr2: ReadWrite<u32>,
-/// Match Register 0. MR0 can be enabled through the MCR to reset the TC, stop both
-mr3: ReadWrite<u32>,
+mr: [ReadWrite<u32>;4],
 /// Capture Control Register. The CCR controls which edges of the capture inputs are
 ccr: ReadWrite<u32, CCR::Register>,
 /// Capture Register 0. CR0 is loaded with the value of TC when there is an event on
@@ -316,17 +316,183 @@ CTCR [
     ]
 ]
 ];
+/*
+UNUSED
 const TIMER0_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x40084000 as *const TimerRegisters) };
-
+*/
 
 const TIMER1_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x40085000 as *const TimerRegisters) };
 
 
+/*
+UNUSED
 const TIMER2_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x400C3000 as *const TimerRegisters) };
 
 
 const TIMER3_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x400C4000 as *const TimerRegisters) };
+*/
+/// 204MHz `Frequency`. This is tied to the M4 clock
+#[derive(Debug)]
+pub struct FreqTimer1;
+impl Frequency for FreqTimer1 {
+    fn frequency() -> u32 {
+        ccu1::get_timer_rate(1)//204000000
+    }
+}
+
+pub struct AlarmTimer<'a> {
+    registers: StaticRef<TimerRegisters>,
+    callback: OptionalCell<&'a dyn time::AlarmClient>,
+    index : u8,
+}
+
+impl Controller for AlarmTimer<'a> {
+    type Config = &'static dyn time::AlarmClient;
+    fn configure(&self, client: &'a dyn time::AlarmClient) {
+        self.callback.set(client);
+        // TODO refactor to call the methods specified in the index for the following two calls
+        // instead of having those ugly timer1 functions
+        ccu1::timer1_init();
+        rgu::timer1_trigger_reset();
+        
+        //let freq = ccu1::get_timer_rate(self.index);
+        self.reset();
+        self.match_enable_int();
+        self.set_match_stop();
+        //self.set_match_reset(); //TODO: Double check. I think we don't need this
+    }
+}
+
+//this one will be used by the alarm capsule
+pub static mut MAINTIMER: AlarmTimer<'static> = AlarmTimer {
+    registers: TIMER1_BASE,
+    callback: OptionalCell::empty(),
+    index: 1
+};
+
+impl AlarmTimer<'a> {
+    fn set_client(&self, client: &'a dyn time::AlarmClient) {
+        self.callback.set(client);
+    }
+    
+    fn reset(&self){
+        let regs: &TimerRegisters = &*self.registers;
+        /* Disable timer, set terminal count to non-0 */
+        let reg = regs.tcr.get(); //backup raw value
+        regs.tcr.set(0);
+        regs.tc.set(1);
+    
+        /* Reset timer counter */
+        regs.tcr.write(TCR::CRST.val(1));
+    
+        /* Wait for terminal count to clear */
+        while regs.tc.get() != 0 {}
+    
+        /* Restore timer state */
+        regs.tcr.set(reg);
+    }
+    
+    fn match_enable_int(&self) {
+        let regs: &TimerRegisters = &*self.registers;
+        regs.mcr.set(regs.mcr.get() | 1 << (self.index * 3));
+    }
+    
+    fn set_match_value(&self,value : u32) {
+        let regs: &TimerRegisters = &*self.registers;
+        regs.mr[self.index as usize].set(value);
+    }
+    
+    ///For the specific match counter, enables reset of the terminal count register when a match occurs
+    /*fn set_match_reset(&self) {
+        let regs: &TimerRegisters = &*self.registers;
+        regs.mcr.set(regs.mcr.get() | 1 << (self.index * 3 + 1));
+    }*/
+    
+    ///Stop. TC and PC will be stopped and TCR[0] will be set to 0 if MR1 matches the TC.
+    fn set_match_stop(&self) {
+        let regs: &TimerRegisters = &*self.registers;
+        regs.mcr.set(regs.mcr.get() | 1 << (self.index * 3 + 2));
+    }
+    
+    fn enable(&self) {
+        let regs: &TimerRegisters = &*self.registers;
+        regs.tcr.write(TCR::CEN.val(1)); // this just translates to .set(1) hehehe
+    }
+    fn enable_irq(&self) {
+        unsafe {
+            let n = cortexm4::nvic::Nvic::new(nvic::TIMER0 + self.index as u32);
+            n.clear_pending();
+            n.enable();
+        }
+    }
+    fn disable_irq(&self) {
+        unsafe {
+            let n = cortexm4::nvic::Nvic::new(nvic::TIMER0 + self.index as u32);
+            n.disable();
+            n.clear_pending();
+        }
+    }
+    pub fn handle_interrupt(&self) {
+        let regs: &TimerRegisters = &*self.registers;
+        let is_pending = regs.ir.get() & 1 << self.index;
+        if is_pending != 0 {
+            regs.ir.set(is_pending); // this clears the flag
+            self.callback.map(|cb| {
+                cb.fired();
+            });
+        }
+    }
+    fn get_counter(&self) -> u32 {
+        let regs: &TimerRegisters = &*self.registers;
+        regs.tc.get()
+    }
+    
+    fn is_alarm_enabled(&self) -> bool {
+        let regs: &TimerRegisters = &*self.registers;
+        regs.tcr.is_set(TCR::CEN)
+    }
+}
+
+
+impl Time for AlarmTimer<'a> {
+    type Frequency = FreqTimer1;
+
+    fn now(&self) -> u32 {
+        self.get_counter()
+    }
+
+    fn max_tics(&self) -> u32 {
+        core::u32::MAX
+    }
+}
+
+impl Alarm<'a> for AlarmTimer<'a> {
+    fn set_client(&self, client: &'a dyn time::AlarmClient) {
+        AlarmTimer::set_client(self, client);
+    }
+
+    fn set_alarm(&self, tics: u32) {
+        self.set_match_value(tics);
+        self.enable();
+        self.enable_irq()
+    }
+
+    fn get_alarm(&self) -> u32 {
+        let regs: &TimerRegisters = &*self.registers;
+        regs.mr[self.index as usize].get()
+    }
+
+    fn disable(&self) {
+        let regs: &TimerRegisters = &*self.registers;
+        regs.tcr.write(TCR::CEN.val(0));
+        self.disable_irq();
+    }
+
+    fn is_enabled(&self) -> bool {
+        AlarmTimer::is_alarm_enabled(self)
+    }
+}

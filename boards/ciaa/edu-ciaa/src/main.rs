@@ -49,7 +49,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
 /// Supported drivers by the platform
 pub struct EduCiaaNXP {
     adc: &'static capsules::adc::Adc<'static, lpc43xx::adc::Adc>,
-    alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, lpc43xx::atimer::AlarmTimer<'static>>>,
+    alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, lpc43xx::timer::AlarmTimer<'static>>>,
     button: &'static capsules::button::Button<'static, lpc43xx::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, lpc43xx::gpio::GPIOPin>,
@@ -93,7 +93,7 @@ pub unsafe fn reset_handler() {
     lpc43xx::cgu::board_setup_clocking(lpc43xx::cgu::BASE_CLK::CLK_SEL::CrystalOscillator, lpc43xx::cgu::MAX_CLOCK_FREQ, true);
     lpc43xx::creg::enable_32khz_1khz_osc();
     lpc43xx::creg::enable_creg6_rmii_mode();
-    lpc43xx::eventrouter::event_router_init();
+    //lpc43xx::eventrouter::event_router_init();
     lpc43xx::ritimer::disable_rit(); //TODO find why this is enabled at all
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     // GPIO
@@ -211,40 +211,13 @@ pub unsafe fn reset_handler() {
     DebugWriterComponent::new(uart_mux).finalize(());
 
     // # TIMER
-    let atimer = &lpc43xx::atimer::ATIMER;
-    /*
-    1st way of doing this: (muxed alarm)
-    let mux_alarm = static_init!(
-        MuxAlarm<'static, lpc43xx::atimer::AlarmTimer>,
-        MuxAlarm::new(atimer)
-    );
-    kernel::hil::time::Alarm::set_client(&lpc43xx::atimer::ATIMER, mux_alarm);
-    
-    let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, lpc43xx::atimer::AlarmTimer>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    let alarm = static_init!(
-        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, lpc43xx::atimer::AlarmTimer>>,
-        capsules::alarm::AlarmDriver::new(
-            virtual_alarm_user,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    kernel::hil::time::Alarm::set_client(virtual_alarm_user, alarm);*/
-    /*
-    2nd way: (simple alarm)
+    let timer = &lpc43xx::timer::MAINTIMER;
+    let mux_alarm = AlarmMuxComponent::new(timer)
+        .finalize(components::alarm_mux_component_helper!(lpc43xx::timer::AlarmTimer));
+    timer.configure(mux_alarm);
     let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(lpc43xx::atimer::AlarmTimer));
-    use crate::kernel::hil::time::Alarm;
-    lpc43xx::atimer::ATIMER.set_client(alarm);*/
+        .finalize(components::alarm_component_helper!(lpc43xx::timer::AlarmTimer));
     
-    let mux_alarm = AlarmMuxComponent::new(atimer)
-        .finalize(components::alarm_mux_component_helper!(lpc43xx::atimer::AlarmTimer));
-    atimer.configure(mux_alarm);
-    let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(lpc43xx::atimer::AlarmTimer));
-
     let platform = EduCiaaNXP {
             adc,
             alarm,
