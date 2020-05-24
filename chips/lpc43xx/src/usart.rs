@@ -472,6 +472,8 @@ const USART2_BASE: StaticRef<UsartRegisters> =
 //const USART3_BASE: StaticRef<UsartRegisters> =
 //    unsafe { StaticRef::new(0x400C2000 as *const UsartRegisters) };
 
+const USART_FIFO_TXBUFF_LEN : usize = 16;
+
 /// Stores an ongoing TX transaction. Similar to cc26x2
 struct Transaction {
     /// The buffer containing the bytes to transmit as it should be returned to
@@ -564,8 +566,10 @@ impl<'a> Usart<'a> {
             self.tx.take().map(|mut tx| {
                 // send out the buffer if available, IRQ when TX FIFO empty will bring us back
                 if tx.index < tx.length {
-                        self.put_byte(tx.buffer[tx.index]);
-                        tx.index += 1;
+                        for _ in 0..USART_FIFO_TXBUFF_LEN.min(tx.length-tx.index) {
+                            self.put_byte(tx.buffer[tx.index]);
+                            tx.index += 1;
+                        }
                 }
                 // request is done
                 if tx.index >= tx.length {
@@ -774,15 +778,19 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         self.disable_tx_interrupts();
         let result;
+        let mut idx : usize = 0;
         // if there is a weird input, don't try to do any transfers
         if len == 0 || len > tx_buffer.len() {
             result = (ReturnCode::ESIZE, Some(tx_buffer));
         } else if self.tx.is_some() {
             result = (ReturnCode::EBUSY, Some(tx_buffer));
         } else {
-            // we will send one byte, causing EOT interrupt
+            // we will send the FIFO buffer, causing EOT interrupt to continue the transaction
             if self.is_tx_fifo_available() {
-                self.put_byte(tx_buffer[0]);
+                for _ in 0..USART_FIFO_TXBUFF_LEN.min(len) {
+                    self.put_byte(tx_buffer[idx]);
+                    idx += 1;
+                }
             } else {
                 //I don't like returns in the middle of the code...
                 // but we need to tell we are busy if the fifo is not available
@@ -790,11 +798,13 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
             }
             
             // Transaction will be continued in interrupt bottom half
-            self.tx.put(Transaction {
-                buffer: tx_buffer,
-                length: len,
-                index: 1,
-            });
+            if tx_buffer.len() > USART_FIFO_TXBUFF_LEN {
+                self.tx.put(Transaction {
+                    buffer: tx_buffer,
+                    length: len,
+                    index: idx,
+                });
+            }
             result = (ReturnCode::SUCCESS, None);
         }
         self.enable_tx_interrupts();

@@ -362,8 +362,6 @@ impl Controller for AlarmTimer<'a> {
         //let freq = ccu1::get_timer_rate(self.index);
         self.reset();
         self.match_enable_int();
-        self.set_match_stop();
-        //self.set_match_reset(); //TODO: Double check. I think we don't need this
     }
 }
 
@@ -405,19 +403,19 @@ impl AlarmTimer<'a> {
         let regs: &TimerRegisters = &*self.registers;
         regs.mr[self.index as usize].set(value);
     }
-    
+    /*
     ///For the specific match counter, enables reset of the terminal count register when a match occurs
     fn set_match_reset(&self) {
         let regs: &TimerRegisters = &*self.registers;
         regs.mcr.set(regs.mcr.get() | 1 << (self.index * 3 + 1));
     }
-    
+
     ///Stop. TC and PC will be stopped and TCR[0] will be set to 0 if MR1 matches the TC.
     fn set_match_stop(&self) {
         let regs: &TimerRegisters = &*self.registers;
         regs.mcr.set(regs.mcr.get() | 1 << (self.index * 3 + 2));
     }
-    
+*/
     fn enable(&self) {
         let regs: &TimerRegisters = &*self.registers;
         regs.tcr.write(TCR::CEN.val(1)); // this just translates to .set(1) hehehe
