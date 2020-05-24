@@ -407,10 +407,10 @@ impl AlarmTimer<'a> {
     }
     
     ///For the specific match counter, enables reset of the terminal count register when a match occurs
-    /*fn set_match_reset(&self) {
+    fn set_match_reset(&self) {
         let regs: &TimerRegisters = &*self.registers;
         regs.mcr.set(regs.mcr.get() | 1 << (self.index * 3 + 1));
-    }*/
+    }
     
     ///Stop. TC and PC will be stopped and TCR[0] will be set to 0 if MR1 matches the TC.
     fn set_match_stop(&self) {

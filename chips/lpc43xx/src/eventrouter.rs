@@ -563,7 +563,7 @@ SET_STAT [
 ];
 const EVENTROUTER_BASE: StaticRef<EventrouterRegisters> =
     unsafe { StaticRef::new(0x40044000 as *const EventrouterRegisters) };
-
+/*
 #[no_mangle]
 #[inline(never)]
 pub fn clear_pending_atimer_interrupt_evrt_source() {
@@ -617,3 +617,4 @@ pub fn handle_interrupt()
     }*/
          //panic!("Unhandled eventrouter interrupt");
 }
+*/
