@@ -232,7 +232,7 @@ pub unsafe fn reset_handler() {
     
     platform.pconsole.start();
     
-    debug!("Initialization complete.");
+    debug!("Init done.");
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
