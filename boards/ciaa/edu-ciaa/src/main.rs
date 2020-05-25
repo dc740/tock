@@ -180,6 +180,7 @@ pub unsafe fn reset_handler() {
             &lpc43xx::adc::AdcChannel::AnalogInput3, // Channel 3
         ]
     );
+    
     let adc = static_init!(
         capsules::adc::Adc<'static, lpc43xx::adc::Adc>,
         capsules::adc::Adc::new(
@@ -191,6 +192,7 @@ pub unsafe fn reset_handler() {
             &mut capsules::adc::ADC_BUFFER3
         )
     );
+    lpc43xx::adc::ADC0.configure();
     lpc43xx::adc::ADC0.set_client(adc);
 
     let dynamic_deferred_call_clients =

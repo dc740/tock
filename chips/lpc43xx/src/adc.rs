@@ -129,6 +129,8 @@ const ADC1_BASE: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x400E4000 as *const AdcRegisters) };
 
 const ADC_MAX_SAMPLE_RATE : u32 = 400000;
+const MAIN_ADC_SAMPLE_RATE : u32 = 400000;
+const MAIN_ADC_RESOLUTION : FieldValue<u32, CR::Register> = CR::CLKS::_11Clocks10Bits;
 pub static mut ADC0: Adc = Adc::new(ADC0_BASE, 0);
 pub static mut ADC1: Adc = Adc::new(ADC1_BASE, 1);
 
@@ -186,8 +188,8 @@ impl Adc {
             } else {
                 n = cortexm4::nvic::Nvic::new(nvic::ADC1);
             }
-            n.clear_pending();
             n.disable();
+            n.clear_pending();
         }
     }
     
@@ -215,26 +217,39 @@ impl Adc {
             client.sample_ready(val);
         });
     }
-    
-    pub fn init_adc(&self, channel : u8) {
+
+    pub fn adc_init(&self) {
         let regs = &*self.registers;
-        ccu1::adc_clock_init(channel as u8);
+        //chip_clock_enable
+        ccu1::adc_clock_init(self.adc_idx as u8); //ADC0 or ADC1
         //disable ALL channels first
         regs.inten.set(0);
-        let currently_enabled = regs.cr.read(CR::SEL);
-        let clk_val;
-        if currently_enabled != 0 {
-            clk_val = regs.cr.read(CR::CLKDIV);
-        } else {
-            clk_val = self.get_adc_clk_div(ADC_MAX_SAMPLE_RATE, 11);
-        }
+        let clk_val = self.get_adc_clk_div(ADC_MAX_SAMPLE_RATE, 11);
         regs.cr.write(CR::PDN::TheADConverterIsOperational
                       + CR::CLKS::_11Clocks10Bits
-                      + CR::SEL.val(currently_enabled | (1 << channel))
-                      + CR::CLKDIV.val(clk_val)
-                      + CR::BURST::ConversionsAreSoftwareControlledAndRequire11Clocks);
+                      + CR::CLKDIV.val(clk_val));
+    }
+
+    pub fn set_sample_rate(&self, sample_rate : u32) {
+        let regs = &*self.registers;
+        let clk_val = self.get_adc_clk_div(sample_rate, 11);
+        regs.cr.modify(CR::CLKDIV.val(clk_val));
+    }
+
+    pub fn set_resolution(&self, resolution : FieldValue<u32, CR::Register>) {
+        let regs = &*self.registers;
+        regs.cr.modify(resolution);
+    }
+    
+    pub fn set_start_mode_now(&self) {
+        let regs = &*self.registers;
+        regs.cr.modify(CR::START::StartConversionNow);
+    }
+    
+    pub fn sample(&self, channel : u32) {
         self.enable_interrupt();
         self.channel_set(channel as u32, ChannelSetting::Enable);
+        self.set_start_mode_now();
     }
     
     pub fn get_adc_clk_div(&self, rate : u32, clocks : u32) -> u32 {
@@ -248,6 +263,20 @@ impl Adc {
         let full_rate = rate * clocks;
         ((adc_block_freq * 2 + full_rate) / (full_rate * 2)) - 1
     }
+    
+    pub fn configure(&self) -> ReturnCode {
+        //##### Board_ADC_Init ########
+        //Chip_ADC_Init(LPC_ADC0, &cs);
+        self.adc_init();
+        //Chip_ADC_SetSampleRate(LPC_ADC0, &cs, BOARD_ADC_SAMPLE_RATE);
+        self.set_sample_rate(MAIN_ADC_SAMPLE_RATE);
+        //Chip_ADC_SetResolution(LPC_ADC0, &cs, BOARD_ADC_RESOLUTION);
+        self.set_resolution(MAIN_ADC_RESOLUTION);
+        //##### Chip_ADC_Init ########
+        // this actually resets the custom sample rate and the custom resolution. Is is needed? It's in the LPCOpen samples
+        //self.adc_init();
+        ReturnCode::SUCCESS
+    }
 }
 
 /// Implements an ADC capable reading ADC samples on any channel.
@@ -255,7 +284,7 @@ impl hil::adc::Adc for Adc {
     type Channel = AdcChannel;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
-        self.init_adc(*channel as u8);
+        Adc::sample(self, *channel as u32);
         ReturnCode::SUCCESS
     }
 
