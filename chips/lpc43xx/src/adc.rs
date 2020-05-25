@@ -1,4 +1,4 @@
-
+use core::convert::TryInto;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ ReadOnly, ReadWrite, register_bitfields, FieldValue};
 use kernel::common::StaticRef;
@@ -212,7 +212,7 @@ impl Adc {
         let channel = regs.gdr.read(GDR::CHN);
         self.channel_set(channel, ChannelSetting::Disable);
         
-        let val = regs.dr[channel as usize].read(DR::V_VREF) as u16;
+        let val : u16 = regs.gdr.read(GDR::V_VREF).try_into().unwrap();
         self.client.map(|client| {
             client.sample_ready(val);
         });
@@ -248,7 +248,7 @@ impl Adc {
     
     pub fn sample(&self, channel : u32) {
         self.enable_interrupt();
-        self.channel_set(channel as u32, ChannelSetting::Enable);
+        self.channel_set(channel, ChannelSetting::Enable);
         self.set_start_mode_now();
     }
     
@@ -274,7 +274,7 @@ impl Adc {
         self.set_resolution(MAIN_ADC_RESOLUTION);
         //##### Chip_ADC_Init ########
         // this actually resets the custom sample rate and the custom resolution. Is is needed? It's in the LPCOpen samples
-        //self.adc_init();
+        self.adc_init();
         ReturnCode::SUCCESS
     }
 }
