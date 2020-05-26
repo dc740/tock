@@ -286,7 +286,7 @@ impl Adc {
         self.set_resolution(MAIN_ADC_RESOLUTION);
         //##### Chip_ADC_Init ########
         // this actually resets the custom sample rate and the custom resolution. Is is needed? It's in the LPCOpen samples
-        self.adc_init();
+        //self.adc_init();
         ReturnCode::SUCCESS
     }
 }
