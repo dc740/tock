@@ -246,7 +246,19 @@ impl Adc {
         regs.cr.modify(CR::START::StartConversionNow);
     }
     
+    pub fn enable_channel(&self, channel : u32) {
+        let regs = &*self.registers;
+        let enable = FieldValue::<u32, CR::Register>::new(0x1, channel as usize, 0x1);
+        regs.cr.modify(enable);
+    }
+    
+    pub fn disable_channel(&self, channel : u32) {
+        let regs = &*self.registers;
+        let disable = FieldValue::<u32, CR::Register>::new(0x1, channel as usize, 0x0);
+        regs.cr.modify(disable);
+    }
     pub fn sample(&self, channel : u32) {
+        self.enable_channel(channel);
         self.enable_interrupt();
         self.channel_set(channel, ChannelSetting::Enable);
         self.set_start_mode_now();
