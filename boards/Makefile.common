@@ -180,7 +180,7 @@ check:
 
 .PHONY: clean
 clean::
-	$(Q)$(CARGO) clean $(VERBOSE) --target-dir $(TOCK_ROOT_DIRECTORY)target
+	$(Q)$(CARGO) clean $(VERBOSE)
 
 .PHONY: release
 release: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin

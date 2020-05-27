@@ -589,6 +589,11 @@ impl<'a> Usart<'a> {
     pub fn enable_tx(&self) {
         self.registers.ter.set(1);
     }
+    
+    pub fn is_tx_in_progress(&self) -> bool {
+        self.tx.is_some()
+    }
+    
     pub fn init(&self) {
         // This assumes you already called ccu1.uart2_init()
         /* Enable FIFOs by default, reset them */
