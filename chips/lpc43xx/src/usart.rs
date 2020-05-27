@@ -594,6 +594,10 @@ impl<'a> Usart<'a> {
         self.tx.is_some()
     }
     
+    pub fn is_rx_in_progress(&self) -> bool {
+        self.rx.is_some()
+    }
+    
     pub fn init(&self) {
         // This assumes you already called ccu1.uart2_init()
         /* Enable FIFOs by default, reset them */
@@ -781,7 +785,6 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
         tx_buffer: &'static mut [u8],
         len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        self.disable_tx_interrupts();
         let result;
         let mut idx : usize = 0;
         // if there is a weird input, don't try to do any transfers
@@ -791,6 +794,7 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
             result = (ReturnCode::EBUSY, Some(tx_buffer));
         } else {
             // we will send the FIFO buffer, causing EOT interrupt to continue the transaction
+            self.disable_tx_interrupts();
             if self.is_tx_fifo_available() {
                 for _ in 0..USART_FIFO_TXBUFF_LEN.min(len) {
                     self.put_byte(tx_buffer[idx]);
@@ -798,10 +802,10 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
                 }
             } else {
                 //I don't like returns in the middle of the code...
-                // but we need to tell we are busy if the fifo is not available
+                // but we need to tell we are busy if the fifo is not available..
+                self.enable_tx_interrupts();
                 return (ReturnCode::EBUSY, Some(tx_buffer));
             }
-            
             // Transaction will be continued in interrupt bottom half
             if tx_buffer.len() > USART_FIFO_TXBUFF_LEN {
                 self.tx.put(Transaction {
@@ -810,9 +814,9 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
                     index: idx,
                 });
             }
+            self.enable_tx_interrupts();
             result = (ReturnCode::SUCCESS, None);
         }
-        self.enable_tx_interrupts();
         result
     }
     /// Transmit a single word of data asynchronously. The word length is
