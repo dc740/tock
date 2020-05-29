@@ -546,8 +546,8 @@ impl<'a> Usart<'a> {
             // buffer read request was made
             if self.rx.is_some() {
                 self.rx.take().map(|mut rx| {
-                    // read in a byte
-                    if rx.index < rx.length {
+                    // read in available data
+                    while self.is_rx_fifo_not_empty() && rx.index < rx.length {
                         let byte = self.get_byte();
                         rx.buffer[rx.index] = byte;
                         rx.index += 1;
@@ -639,12 +639,14 @@ impl<'a> Usart<'a> {
     pub fn init(&self) {
         // This assumes you already called ccu1.uart2_init()
         /* Enable FIFOs by default, reset them */
+        // RX FIFO is 14 characters, or the enter char (0x0E)
         self.registers
             .fcr
             .write(FCR::FIFOEN::ENABLED
              + FCR::RXFIFORES::RX_CLEAR
              + FCR::TXFIFORES::TX_CLEAR
              + FCR::RXTRIGLVL::Level3TriggerLevel314CharactersOr0x0E);
+        
         /* Disable Tx */
         self.disable_tx();
         /* Disable interrupts */
