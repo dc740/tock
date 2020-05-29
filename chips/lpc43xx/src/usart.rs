@@ -837,13 +837,23 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
             result = (ReturnCode::EBUSY, Some(tx_buffer));
         } else {
             // we will send the FIFO buffer, causing EOT interrupt to continue the transaction
-            self.put_byte(tx_buffer[0]);
-            // Transaction will be continued in interrupt bottom half
-            // client notifications MUST be sent from the interrupt handler
+            let mut idx = 0;
+            if self.is_tx_fifo_empty() {
+                for _ in 0..USART_FIFO_TXBUFF_LEN.min(len) {
+                    self.put_byte(tx_buffer[idx]);
+                    idx += 1;
+                }
+            }
+            //if there are no transactions, but the fifo is NOT empty
+            //it's safe to enqueue another transaction that will be triggered
+            //when the TX FIFO gets emptied.
+            // Then Transaction will be continued in interrupt handler.
+            // client notifications MUST ALWAYS be sent from the interrupt handler.
+            // You must not notify clients from here, even if you are done sending the buffer.
             self.tx.put(Transaction {
                 buffer: tx_buffer,
                 length: len,
-                index: 1,
+                index: idx,
             });
 
             self.enable_tx_interrupts();
