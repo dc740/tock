@@ -538,8 +538,8 @@ impl<'a> Usart<'a> {
     pub fn handle_interrupt(&self) {
         self.disable_interrupt();
         // You NEED to read these registers, or the interrupt DOES NOT get cleared
-        let iir = self.registers.fcr.get(); //iir
-        let ier = self.registers.ier.get();
+        self.registers.fcr.get(); //iir
+        self.registers.ier.get();
         
         // Hardware RX FIFO is not empty (reads LSR)
         while self.is_rx_fifo_not_empty() {
@@ -574,7 +574,7 @@ impl<'a> Usart<'a> {
             }
         }
         
-        //if iir & 2 != 0 { // Pending interrupt with THREIE flag
+        //if iir & 2 != 0 then we have a pending interrupt with THREIE flag
         self.tx.take().map(|mut tx| {
             // send out the buffer if available, IRQ when TX FIFO empty will bring us back
             if tx.index < tx.length && self.is_tx_fifo_empty() {
@@ -588,38 +588,12 @@ impl<'a> Usart<'a> {
                 self.tx_client.map(move |client| {
                     client.transmitted_buffer(tx.buffer, tx.length, ReturnCode::SUCCESS);
                 });
-                self.disable_rx_interrupts();
             } else {
                 // keep TX buffer as there is more left in request
                 self.tx.put(tx);
             }
         });
-        //}
-        /*unsafe {
-            asm!(
-                "mov r0, $0
-                mov r2, $1
-                bkpt #4"
-                :                                          // outputs
-                :  "r"(iir), "r"(ier)                          // inputs
-                :   "r0", "r1"                                 // clobbers
-                :                                          // no options
-                );
-        }*/
         if self.is_tx_fifo_empty() && !self.is_tx_in_progress() {
-            let lsr = self.registers.lsr.get();
-           /*         unsafe {
-            asm!(
-                "mov r0, $0
-                mov r1, $1
-                mov r2, $2
-                bkpt #5"
-                :                                          // outputs
-                :  "r"(iir), "r"(ier), "r"(lsr)                          // inputs
-                :   "r0", "r1", "r2"                                 // clobbers
-                :                                          // no options
-                );
-        }*/
             self.disable_tx_interrupts();
         }
         self.enable_interrupt();
@@ -853,28 +827,8 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
         let result;
         // if there is a weird input, don't try to do any transfers
         if len == 0 || len > tx_buffer.len() {
-                        unsafe {
-    asm!(
-        "mov r0, $0
-        bkpt #3"
-        :                                          // outputs
-        :  "r"(len)                          // inputs
-        :   "r0"                                 // clobbers
-        :                                          // no options
-        );
-}
             result = (ReturnCode::ESIZE, Some(tx_buffer));
         } else if self.tx.is_some() {
-                        unsafe {
-    asm!(
-        "mov r0, $0
-        bkpt #2"
-        :                                          // outputs
-        :  "r"(len)                          // inputs
-        :   "r0"                                 // clobbers
-        :                                          // no options
-        );
-}
             result = (ReturnCode::EBUSY, Some(tx_buffer));
         } else {
             // we will send the FIFO buffer, causing EOT interrupt to continue the transaction

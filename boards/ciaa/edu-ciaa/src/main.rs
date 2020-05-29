@@ -232,8 +232,7 @@ pub unsafe fn reset_handler() {
         };
     let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
     
-    // Lets not use this module for now until we can use the usart output
-    //platform.pconsole.start();
+    platform.pconsole.start();
     
     debug!("Init done. This is a very long string. For testing.");
     extern "C" {
