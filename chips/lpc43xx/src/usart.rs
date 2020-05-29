@@ -639,13 +639,15 @@ impl<'a> Usart<'a> {
     pub fn init(&self) {
         // This assumes you already called ccu1.uart2_init()
         /* Enable FIFOs by default, reset them */
-        // RX FIFO is 14 characters, or the enter char (0x0E)
+        
         self.registers
             .fcr
             .write(FCR::FIFOEN::ENABLED
              + FCR::RXFIFORES::RX_CLEAR
              + FCR::TXFIFORES::TX_CLEAR
-             + FCR::RXTRIGLVL::Level3TriggerLevel314CharactersOr0x0E);
+             + FCR::RXTRIGLVL::Level0TriggerLevel01CharacterOr0x01);
+             //process console reads 1 char at a time. We need to be able to trigger.
+             //+ FCR::RXTRIGLVL::Level3TriggerLevel314CharactersOr0x0E);
         
         /* Disable Tx */
         self.disable_tx();
@@ -837,17 +839,13 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
             // we will send the FIFO buffer, causing EOT interrupt to continue the transaction
             self.put_byte(tx_buffer[0]);
             // Transaction will be continued in interrupt bottom half
-            if len != 1 {
-                self.tx.put(Transaction {
-                    buffer: tx_buffer,
-                    length: len,
-                    index: 1,
-                });
-            } else {
-                self.tx_client.map(move |client| {
-                    client.transmitted_buffer(tx_buffer, len, ReturnCode::SUCCESS);
-                });
-            }
+            // client notifications MUST be sent from the interrupt handler
+            self.tx.put(Transaction {
+                buffer: tx_buffer,
+                length: len,
+                index: 1,
+            });
+
             self.enable_tx_interrupts();
             result = (ReturnCode::SUCCESS, None);
         }
