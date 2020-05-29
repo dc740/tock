@@ -45,7 +45,7 @@ register_structs! {
         (0x380 => _reserved2),
 
         /// Interrupt Priority Registers
-        (0x400 => ipr: [ReadWrite<u32, NvicInterruptPriority::Register>; 252]),
+        (0x400 => ipr: [ReadWrite<u8, NvicInterruptPriority::Register>; 252]),
 
         (0x7f0 => @END),
     }
@@ -63,20 +63,13 @@ register_bitfields![u32,
         ///     - m takes the values from 15 to 0
         ///     - register bits[31:16] are reserved, RAZ/WI
         BITS            OFFSET(0)   NUMBITS(32)
-    ],
+    ]
+];
 
+register_bitfields![u8,
     NvicInterruptPriority [
-        /// For register NVIC_IPRn, priority of interrupt number 4n+3.
-        PRI_N3          OFFSET(24)  NUMBITS(8),
-
-        /// For register NVIC_IPRn, priority of interrupt number 4n+2.
-        PRI_N2          OFFSET(16)  NUMBITS(8),
-
-        /// For register NVIC_IPRn, priority of interrupt number 4n+1.
-        PRI_N1          OFFSET(8)   NUMBITS(8),
-
         /// For register NVIC_IPRn, priority of interrupt number 4n.
-        PRI_N0          OFFSET(0)   NUMBITS(8)
+        PRI_N          OFFSET(5)   NUMBITS(3)
     ]
 ];
 
@@ -175,5 +168,11 @@ impl Nvic {
         let idx = self.0 as usize;
 
         NVIC.icpr[idx / 32].set(1 << (self.0 & 31));
+    }
+
+    pub fn set_priority(&self, value : u8) {
+        let idx = self.0 as usize;
+
+        NVIC.ipr[idx].write(NvicInterruptPriority::PRI_N.val(value));
     }
 }

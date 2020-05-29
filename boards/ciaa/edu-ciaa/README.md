@@ -115,17 +115,18 @@ difficult.
 
 You can also use this unsafe code to debug variables that will be optimized out.
 This is very helpful if your gdb is completely buggy and behaves completely randomly as it does for the lpc4337 with rust.
-After the breakpoint hits, your variable will be in r0. This is quite useful to debug
+After the breakpoint hits, your variable will be in the registers. This is quite useful to debug
 unhandled interrupts.
 
 ```
 unsafe {
     asm!(
         "mov r0, $0
+        mov r1, $1
         bkpt #1"
         :                                          // outputs
-        :  "r"(interrupt)                          // inputs
-        :   "r0"                                 // clobbers
+        :  "r"(interrupt), "r"(other_var)         // inputs
+        :   "r0", "r1"                             // clobbers
         :                                          // no options
         );
 }

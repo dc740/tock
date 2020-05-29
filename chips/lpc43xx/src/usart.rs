@@ -511,6 +511,14 @@ impl<'a> Usart<'a> {
             );
 
     }
+    
+    fn disable_rx_interrupts(&self) {
+        // disable interrupts
+        self.registers.ier.modify(
+            IER::RBRIE::DisableDisableTheRDAInterrupt 
+            + IER::RXIE::DisableDisableTheRXLineStatusInterrupts
+            );
+    }
 
     fn enable_tx_interrupts(&self) {
         // set only interrupts used
@@ -528,7 +536,12 @@ impl<'a> Usart<'a> {
     #[no_mangle]
     #[inline(never)]
     pub fn handle_interrupt(&self) {
-        // Hardware RX FIFO is not empty
+        self.disable_interrupt();
+        // You NEED to read these registers, or the interrupt DOES NOT get cleared
+        let iir = self.registers.fcr.get(); //iir
+        let ier = self.registers.ier.get();
+        
+        // Hardware RX FIFO is not empty (reads LSR)
         while self.is_rx_fifo_not_empty() {
             // buffer read request was made
             if self.rx.is_some() {
@@ -540,7 +553,7 @@ impl<'a> Usart<'a> {
                         rx.index += 1;
                     }
 
-                    if rx.index == rx.length {
+                    if rx.index >= rx.length {
                         self.rx_client.map(move |client| {
                             client.received_buffer(
                                 rx.buffer,
@@ -560,29 +573,58 @@ impl<'a> Usart<'a> {
                 self.get_byte();
             }
         }
-        // You NEED to read IIR, or the interrupt DOES NOT get cleared
-        let iir = self.registers.fcr.get();
-        if iir & 2 != 0 { // Pending interrupt with THREIE flag
-            self.tx.take().map(|mut tx| {
-                // send out the buffer if available, IRQ when TX FIFO empty will bring us back
-                if tx.index < tx.length {
-                        for _ in 0..USART_FIFO_TXBUFF_LEN.min(tx.length-tx.index) {
-                            self.put_byte(tx.buffer[tx.index]);
-                            tx.index += 1;
-                        }
-                }
-                // request is done
-                if tx.index >= tx.length {
-                    self.tx_client.map(move |client| {
-                        client.transmitted_buffer(tx.buffer, tx.length, ReturnCode::SUCCESS);
-                    });
-                } else {
-                    // keep TX buffer as there is more left in request
-                    self.tx.put(tx);
-                }
-            });
+        
+        //if iir & 2 != 0 { // Pending interrupt with THREIE flag
+        self.tx.take().map(|mut tx| {
+            // send out the buffer if available, IRQ when TX FIFO empty will bring us back
+            if tx.index < tx.length && self.is_tx_fifo_empty() {
+                    for _ in 0..USART_FIFO_TXBUFF_LEN.min(tx.length-tx.index) {
+                        self.put_byte(tx.buffer[tx.index]);
+                        tx.index += 1;
+                    }
+            }
+            // request is done
+            if tx.index >= tx.length {
+                self.tx_client.map(move |client| {
+                    client.transmitted_buffer(tx.buffer, tx.length, ReturnCode::SUCCESS);
+                });
+                self.disable_rx_interrupts();
+            } else {
+                // keep TX buffer as there is more left in request
+                self.tx.put(tx);
+            }
+        });
+        //}
+        /*unsafe {
+            asm!(
+                "mov r0, $0
+                mov r2, $1
+                bkpt #4"
+                :                                          // outputs
+                :  "r"(iir), "r"(ier)                          // inputs
+                :   "r0", "r1"                                 // clobbers
+                :                                          // no options
+                );
+        }*/
+        if self.is_tx_fifo_empty() && !self.is_tx_in_progress() {
+            let lsr = self.registers.lsr.get();
+           /*         unsafe {
+            asm!(
+                "mov r0, $0
+                mov r1, $1
+                mov r2, $2
+                bkpt #5"
+                :                                          // outputs
+                :  "r"(iir), "r"(ier), "r"(lsr)                          // inputs
+                :   "r0", "r1", "r2"                                 // clobbers
+                :                                          // no options
+                );
+        }*/
+            self.disable_tx_interrupts();
         }
+        self.enable_interrupt();
     }
+    
     pub fn disable_tx(&self) {
         self.registers.ter.set(0);
     }
@@ -596,6 +638,27 @@ impl<'a> Usart<'a> {
     
     pub fn is_rx_in_progress(&self) -> bool {
         self.rx.is_some()
+    }
+    
+    pub fn enable_interrupt(&self) {
+        //enable  IRQ
+        unsafe {
+            let n;
+            n = cortexm4::nvic::Nvic::new(nvic::USART2);
+            n.clear_pending();
+            n.set_priority(1);
+            n.enable();
+        }
+    }
+    
+    pub fn disable_interrupt(&self) {
+        //disable  IRQ
+        unsafe {
+            let n;
+            n = cortexm4::nvic::Nvic::new(nvic::USART2);
+            n.disable();
+            n.clear_pending();
+        }
     }
     
     pub fn init(&self) {
@@ -640,13 +703,18 @@ impl<'a> Usart<'a> {
         );
     }
     
-    pub fn is_tx_fifo_available(&self) -> bool {
+    pub fn is_tx_fifo_empty(&self) -> bool {
         self.registers.lsr.is_set(LSR::THRE)
     }
     
     pub fn is_rx_fifo_not_empty(&self) -> bool {
         self.registers.lsr.is_set(LSR::RDR)
     }
+    pub fn disable_auto_baud(&self) {
+        self.registers.ier.modify(IER::ABEOINTEN::DisableDisableEndOfAutoBaudInterrupt + IER::ABTOINTEN::DisableDisableAutoBaudTimeOutInterrupt);
+        self.registers.acr.modify(ACR::START::StopAutoBaudStopAutoBaudIsNotRunning);
+    }
+        
     /* Determines and sets best dividers to get a target baud rate */
     pub fn set_baud_fdr(&self, baud: u32) -> u32 {
         let (mut sdiv, mut sm, mut sd): (u32, u32, u32) = (0, 1, 0);
@@ -737,16 +805,12 @@ impl<'a> kernel::hil::uart::Configure for Usart<'a> {
         ccu1::uart2_init();
         self.init();
         self.set_baud_fdr(params.baud_rate);
+        self.disable_auto_baud();
         self.init_lcr();
         self.enable_tx();
         
         // Enable interrupts
-        self.enable_rx_interrupts();
-        unsafe {
-            let n = cortexm4::nvic::Nvic::new(nvic::USART2);
-            n.clear_pending();
-            n.enable();
-        }
+        self.enable_interrupt();
         ReturnCode::SUCCESS
     }
 }
@@ -785,33 +849,46 @@ impl<'a> kernel::hil::uart::Transmit<'a> for Usart<'a> {
         tx_buffer: &'static mut [u8],
         len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        self.disable_tx_interrupts();
         let result;
-        let mut idx : usize = 0;
         // if there is a weird input, don't try to do any transfers
         if len == 0 || len > tx_buffer.len() {
+                        unsafe {
+    asm!(
+        "mov r0, $0
+        bkpt #3"
+        :                                          // outputs
+        :  "r"(len)                          // inputs
+        :   "r0"                                 // clobbers
+        :                                          // no options
+        );
+}
             result = (ReturnCode::ESIZE, Some(tx_buffer));
         } else if self.tx.is_some() {
+                        unsafe {
+    asm!(
+        "mov r0, $0
+        bkpt #2"
+        :                                          // outputs
+        :  "r"(len)                          // inputs
+        :   "r0"                                 // clobbers
+        :                                          // no options
+        );
+}
             result = (ReturnCode::EBUSY, Some(tx_buffer));
         } else {
             // we will send the FIFO buffer, causing EOT interrupt to continue the transaction
-            self.disable_tx_interrupts();
-            if self.is_tx_fifo_available() {
-                for _ in 0..USART_FIFO_TXBUFF_LEN.min(len) {
-                    self.put_byte(tx_buffer[idx]);
-                    idx += 1;
-                }
-            } else {
-                //I don't like returns in the middle of the code...
-                // but we need to tell we are busy if the fifo is not available..
-                self.enable_tx_interrupts();
-                return (ReturnCode::EBUSY, Some(tx_buffer));
-            }
+            self.put_byte(tx_buffer[0]);
             // Transaction will be continued in interrupt bottom half
-            if tx_buffer.len() > USART_FIFO_TXBUFF_LEN {
+            if len != 1 {
                 self.tx.put(Transaction {
                     buffer: tx_buffer,
                     length: len,
-                    index: idx,
+                    index: 1,
+                });
+            } else {
+                self.tx_client.map(move |client| {
+                    client.transmitted_buffer(tx_buffer, len, ReturnCode::SUCCESS);
                 });
             }
             self.enable_tx_interrupts();
@@ -884,7 +961,7 @@ impl<'a> kernel::hil::uart::Receive<'a> for Usart<'a> {
                 length: len,
                 index: 0,
             });
-
+            self.enable_rx_interrupts();
             (ReturnCode::SUCCESS, None)
         }
     }

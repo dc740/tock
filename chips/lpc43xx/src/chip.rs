@@ -74,7 +74,7 @@ impl Chip for Lpc43xx {
 
     fn sleep(&self) {
         unsafe {
-            if !usart::USART2.is_tx_in_progress() {//&& !usart::USART2.is_rx_in_progress() {
+            if !usart::USART2.is_tx_in_progress() && !usart::USART2.is_rx_in_progress() {
                 cortexm4::support::wfi();
             }
         }
