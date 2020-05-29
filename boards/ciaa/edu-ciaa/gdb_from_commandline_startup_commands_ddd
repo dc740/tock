@@ -1,0 +1,6 @@
+set mem inaccessible-by-default on
+set print elements 0
+target remote localhost:3333
+monitor arm semihosting disable
+monitor reset init
+monitor halt
