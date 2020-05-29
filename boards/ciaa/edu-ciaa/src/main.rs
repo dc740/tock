@@ -232,7 +232,8 @@ pub unsafe fn reset_handler() {
         };
     let chip = static_init!(lpc43xx::chip::Lpc43xx, lpc43xx::chip::Lpc43xx::new());
     
-    platform.pconsole.start();
+    // if you enable this, it will always wait for input and never go to sleep
+    //platform.pconsole.start();
     
     debug!("Init done. This is a very long string. For testing.");
     extern "C" {

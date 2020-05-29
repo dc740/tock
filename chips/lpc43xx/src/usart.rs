@@ -562,6 +562,7 @@ impl<'a> Usart<'a> {
                                 kernel::hil::uart::Error::None,
                             );
                         });
+                        self.disable_rx_interrupts();
                     } else {
                         self.rx.put(rx);
                     }
