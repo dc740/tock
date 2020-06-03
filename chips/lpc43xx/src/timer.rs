@@ -350,7 +350,7 @@ pub struct AlarmTimer<'a> {
     index : u8,
 }
 
-impl Controller for AlarmTimer<'a> {
+impl<'a> Controller for AlarmTimer<'a> {
     type Config = &'static dyn time::AlarmClient;
     fn configure(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
@@ -372,7 +372,7 @@ pub static mut MAINTIMER: AlarmTimer<'static> = AlarmTimer {
     index: 1
 };
 
-impl AlarmTimer<'a> {
+impl<'a> AlarmTimer<'a> {
     fn set_client(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
     }
@@ -456,7 +456,7 @@ impl AlarmTimer<'a> {
 }
 
 
-impl Time for AlarmTimer<'a> {
+impl Time for AlarmTimer<'_> {
     type Frequency = FreqTimer1;
 
     fn now(&self) -> u32 {
@@ -468,7 +468,7 @@ impl Time for AlarmTimer<'a> {
     }
 }
 
-impl Alarm<'a> for AlarmTimer<'a> {
+impl<'a> Alarm<'a> for AlarmTimer<'a> {
     fn set_client(&self, client: &'a dyn time::AlarmClient) {
         AlarmTimer::set_client(self, client);
     }

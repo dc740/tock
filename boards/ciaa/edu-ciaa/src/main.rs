@@ -3,7 +3,6 @@
 #![feature(panic_info_message)]
 //#![deny(missing_docs)]
 #![feature(asm)]
-#![feature(in_band_lifetimes)]
 
 extern crate capsules;
 #[allow(unused_imports)]
