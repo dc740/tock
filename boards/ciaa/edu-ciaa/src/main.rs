@@ -138,6 +138,7 @@ pub unsafe fn reset_handler() {
                     35 => &lpc43xx::gpio::GPIO0[2]   /*  35   CON2_09   ENET_RXD0 */
                     ),
                 ).finalize(components::gpio_component_buf!(lpc43xx::gpio::GPIOPin));
+    
     // LEDS
     let led = components::led::LedsComponent::new(
         components::led_component_helper!(

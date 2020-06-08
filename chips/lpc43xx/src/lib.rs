@@ -1,6 +1,6 @@
 #![crate_name = "lpc43xx"]
 #![crate_type = "rlib"]
-#![feature(asm, concat_idents, const_fn, core_intrinsics)]
+#![feature(const_fn, asm)]
 #![no_std]
 
 extern crate cortexm4;
@@ -81,9 +81,12 @@ extern "C" {
 }
 
 
-#[link_section = ".vectors"]
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
 // used Ensures that the symbol is kept until the final binary
-#[used]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
     reset_handler,
@@ -103,8 +106,12 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     systick_handler,     // SysTick
 ];
 
-#[link_section = ".vectors"]
-#[used] // Ensures that the symbol is kept until the final binary
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
+// used Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 pub unsafe fn init() {
