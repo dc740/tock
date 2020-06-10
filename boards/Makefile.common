@@ -220,7 +220,6 @@ target:
 	$(Q)$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum $@
 
 %.lst: %.elf
-	echo "$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@"
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
 
 
