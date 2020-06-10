@@ -35,14 +35,7 @@ fn flush(writer : &mut Writer)  {
            Ok(m) => m,
     };
     unsafe {
-        asm!(
-            "mov r0, $0
-            bkpt #128"
-            :                                          // outputs
-            :  "r"(&message)                             // inputs
-            :   "r0"                                       // clobbers
-            :                                          // options
-            );
+        asm!("bkpt #128", in("r0") &message, options(noreturn));
     }
 }
 /// Panic.

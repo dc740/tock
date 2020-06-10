@@ -1,8 +1,7 @@
 #![no_std]
 #![no_main]
-#![feature(panic_info_message)]
+#![feature(panic_info_message, asm)]
 //#![deny(missing_docs)]
-#![feature(asm)]
 
 extern crate capsules;
 #[allow(unused_imports)]

@@ -47,16 +47,9 @@ impl Chip for Lpc43xx {
                         _ => {
                             // This handler should work with JLink GDB to unwind the stack trace
 //                            asm!("bkpt #10
-//                            bx lr"::::);
-                                asm!(
-                                    "mov r0, $0
-                                    bkpt #1"
-                                    :                                          // outputs
-                                    :  "r"(interrupt)                          // inputs
-                                    :   "r0"                                 // clobbers
-                                    :                                          // no options
-                                    );
-                            panic!("unhandled interrupt {}", interrupt);
+//                            bx lr");
+                                asm!("bkpt #1", in("r0") interrupt);
+                                panic!("unhandled interrupt {}", interrupt);
                         }
                     }
                     let n = cortexm4::nvic::Nvic::new(interrupt);

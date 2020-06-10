@@ -119,10 +119,10 @@ pub unsafe fn init() {
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
     // Set PRIMASK
-    asm!("cpsid i" :::: "volatile");
+    asm!("cpsid i", options(nomem, nostack, preserves_flags)); //volatile?
 
     cortexm4::nvic::clear_all_pending();
 
     // Unset PRIMASK
-    asm!("cpsie i" :::: "volatile");
+    asm!("cpsie i", options(nomem, nostack, preserves_flags)); //volatile?
 }
