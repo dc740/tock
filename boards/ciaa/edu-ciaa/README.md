@@ -1,22 +1,6 @@
 Platform-Specific Instructions: EDU-CIAA-NXP
 ===================================
 
-WARNING. THERE IS A PROBLEM WITH LLVM-OBJCOPY AND THIS BOARD DOES NOT COMPILE A VALID BINARY WITH THE LATEST NIGHTLY.
-===================================
-
-# BUG:
-https://github.com/rust-lang/rust/issues/73201
-
-# WORKAROUND
-USE AN OLDER VERSION OF llvm-objcopy (requires nightly-2020-03-06)
-
-    mv ~/.rustup/toolchains/nightly-2020-06-03-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-objcopy ~/.rustup/toolchains/nightly-2020-06-03-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-objcopy.backup
-    cp ~/.rustup/toolchains/nightly-2020-03-06-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libLLVM-9-rust-1.43.0-nightly.so ~/.rustup/toolchains/nightly-2020-06-03-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/
-    cp ~/.rustup/toolchains/nightly-2020-03-06-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-objcopy ~/.rustup/toolchains/nightly-2020-06-03-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-objcopy
-
-END OF PSA
-===================================
-
 The EDU-CIAA-NXP board is based on the LPC 4337 chip.
 It's used as a teaching platform in Argentina, and it was
 developed locally. The CIAA-NXP is its bigger sibling, designed
