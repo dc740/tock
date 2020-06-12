@@ -1,5 +1,5 @@
 use kernel::common::cells::{MapCell, OptionalCell};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::common::registers::{register_bitfields, Aliased, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ReturnCode;
 use crate::{ccu1, nvic, scu};
@@ -18,7 +18,7 @@ struct UsartRegisters {
     ier: ReadWrite<u32, IER::Register>,
     /// Interrupt ID Register. Identifies which interrupt(s) are pending. (ReadOnly)
     /// Also FIFO Control Register. Controls UART FIFO usage and modes. So we changed from ReadOnly to ReadWrite
-    fcr: ReadWrite<u32, FCR::Register>,
+    fcr: Aliased<u32, IIR::Register, FCR::Register>,
     /// Line Control Register. Contains controls for frame formatting and break generati
     lcr: ReadWrite<u32, LCR::Register>,
     _reserved0: [u8; 4],
